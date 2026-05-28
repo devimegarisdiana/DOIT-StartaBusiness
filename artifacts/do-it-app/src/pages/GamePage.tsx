@@ -168,9 +168,9 @@ export default function GamePage() {
     finally { setLoading(false); }
   }
 
-  async function handleStart() {
+  async function handleStart(testMode = false) {
     setLoading(true);
-    try { await post("/start", {}); setAppPhase("game"); }
+    try { await post("/start", { testMode }); setAppPhase("game"); }
     catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
     finally { setLoading(false); }
   }
@@ -432,17 +432,26 @@ export default function GamePage() {
             <div className="w-px bg-gray-100" />
             <div><div className="text-xs text-gray-400">Total Ronde</div><div className="font-black text-sm text-gray-700">4 Ronde</div></div>
           </div>
-          {isHost
-            ? <button onClick={handleStart} disabled={loading || room.players.length < 2}
+          {isHost ? (
+            <div className="flex flex-col gap-2">
+              <button onClick={() => handleStart(false)} disabled={loading || room.players.length < 2}
                 className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
                 style={{ background: room.players.length >= 2 ? "linear-gradient(135deg,#28a745,#20c058)" : "#ccc" }}>
                 {loading ? "Memulai..." : room.players.length < 2 ? "Butuh minimal 2 pemain" : "🎮 Mulai Permainan!"}
               </button>
-            : <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
-                <div className="text-2xl mb-1 animate-pulse">⏳</div>
-                <p className="text-sm font-bold text-gray-500">Menunggu host memulai...</p>
-              </div>
-          }
+              {/* ── TOMBOL TEST SEMENTARA ── */}
+              <button onClick={() => handleStart(true)} disabled={loading}
+                className="w-full py-3 rounded-2xl font-black text-sm disabled:opacity-50 active:scale-95 transition-transform border-2 border-dashed"
+                style={{ background: "#fffbeb", color: "#92400e", borderColor: "#f59e0b" }}>
+                🧪 Mulai Testing Solo (hapus nanti)
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+              <div className="text-2xl mb-1 animate-pulse">⏳</div>
+              <p className="text-sm font-bold text-gray-500">Menunggu host memulai...</p>
+            </div>
+          )}
         </div>
       </div>
     );

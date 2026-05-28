@@ -189,7 +189,8 @@ router.post("/rooms/:code/start", (req, res) => {
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   const { playerId } = req.body as { playerId: string };
   if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host yang bisa memulai" }); return; }
-  if (room.players.length < 2) { res.status(400).json({ error: "Minimal 2 pemain" }); return; }
+  const { testMode } = req.body as { playerId: string; testMode?: boolean };
+  if (!testMode && room.players.length < 2) { res.status(400).json({ error: "Minimal 2 pemain" }); return; }
 
   room.status = "playing";
   room.currentRonde = 1;
