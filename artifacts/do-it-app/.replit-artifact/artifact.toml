@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "DO IT: Start a Business"
+version = "1.0.0"
+id = "artifacts/do-it-app"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22500
+
+[services.development]
+run = "pnpm --filter @workspace/do-it-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/do-it-app", "run", "build" ]
+publicDir = "artifacts/do-it-app/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22500"
+BASE_PATH = "/"
