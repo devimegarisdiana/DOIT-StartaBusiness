@@ -1,90 +1,135 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API = "/api";
 
-type RoomStatus = "waiting" | "playing" | "finished";
+type BoardColor = "merah" | "biru" | "kuning" | "hijau";
+type ActionChoice = "upgrade" | "social" | "expand";
+type GamePhase = "csr" | "operational" | "revenue" | "lembur_offer" | "between_rounds" | "finished";
+
+interface KAP {
+  kreativitas: number;
+  socialNetworking: number;
+  internalLocus: number;
+  toleransiAmbiguitas: number;
+  bersediaRisiko: number;
+}
 
 interface Transaction {
-  id: string;
-  keterangan: string;
-  jumlah: number;
-  tipe: "pemasukan" | "pengeluaran";
-  waktu: string;
+  id: string; keterangan: string; jumlah: number;
+  tipe: "pemasukan" | "pengeluaran"; waktu: string; ronde: number;
 }
 
 interface Player {
-  id: string;
-  name: string;
-  isHost: boolean;
-  transactions: Transaction[];
+  id: string; name: string; boardColor: BoardColor; isHost: boolean;
+  money: number; hutang: number; kap: KAP; kapScore: number;
+  transactions: Transaction[]; lastAction: ActionChoice | null;
+  csrPaidThisRound: boolean; lemburThisRound: boolean;
 }
 
 interface Room {
-  code: string;
-  hostId: string;
-  players: Player[];
-  maxPlayers: number;
-  modalAwal: number;
-  currentTurnIndex: number;
-  status: RoomStatus;
+  code: string; hostId: string; players: Player[];
+  maxPlayers: number; modalAwal: number;
+  currentTurnIndex: number; status: "waiting" | "playing" | "finished";
+  currentRonde: number; currentPutaran: number;
+  phase: GamePhase; actedThisPutaran: string[];
 }
 
-type Phase = "lobby" | "create" | "join" | "waiting" | "playing" | "finished";
+type AppPhase = "lobby" | "create" | "join" | "waiting" | "game";
+
+const BOARD_COLORS: { value: BoardColor; label: string; emoji: string; bg: string; text: string }[] = [
+  { value: "merah",  label: "Merah – Hotel",   emoji: "🏨", bg: "#fee2e2", text: "#dc2626" },
+  { value: "biru",   label: "Biru – Sekolah",  emoji: "🏫", bg: "#dbeafe", text: "#2563eb" },
+  { value: "kuning", label: "Kuning – Kantor",  emoji: "🏢", bg: "#fef9c3", text: "#ca8a04" },
+  { value: "hijau",  label: "Hijau – Taman",   emoji: "🌳", bg: "#dcfce7", text: "#16a34a" },
+];
+
+const PHASE_LABELS: Record<GamePhase, string> = {
+  csr: "Fase CSR",
+  operational: "Fase Operasional",
+  revenue: "Hitung Pendapatan",
+  lembur_offer: "Tawaran Lembur",
+  between_rounds: "Antar Ronde",
+  finished: "Selesai",
+};
+
+function formatRp(n: number) {
+  return "Rp " + n.toLocaleString("id-ID");
+}
+
+function colorStyle(bc: BoardColor) {
+  const c = BOARD_COLORS.find(x => x.value === bc)!;
+  return { background: c.bg, color: c.text };
+}
+
+function KAPBar({ label, value, max = 7, color }: { label: string; value: number; max?: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-gray-500 w-24 truncate">{label}</span>
+      <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${(value / max) * 100}%`, background: color }} />
+      </div>
+      <span className="text-[10px] font-black w-4 text-right" style={{ color }}>{value}</span>
+    </div>
+  );
+}
 
 export default function GamePage() {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<Phase>("lobby");
-
-  // Identity
+  const [appPhase, setAppPhase] = useState<AppPhase>("lobby");
   const [myId, setMyId] = useState("");
   const [room, setRoom] = useState<Room | null>(null);
 
-  // Create form
+  // Forms
   const [createName, setCreateName] = useState("");
+  const [createColor, setCreateColor] = useState<BoardColor>("merah");
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [modalAwal, setModalAwal] = useState("500000");
-
-  // Join form
   const [joinName, setJoinName] = useState("");
+  const [joinColor, setJoinColor] = useState<BoardColor>("biru");
   const [joinCode, setJoinCode] = useState("");
 
-  // Transaction form
-  const [showForm, setShowForm] = useState(false);
-  const [keterangan, setKeterangan] = useState("");
-  const [jumlah, setJumlah] = useState("");
-  const [tipe, setTipe] = useState<"pemasukan" | "pengeluaran">("pemasukan");
+  // Game action state
+  const [pendapatan, setPendapatan] = useState("");
+  const [pajak, setPajak] = useState("");
+  const [hutangModal, setHutangModal] = useState(false);
+  const [showDebt, setShowDebt] = useState(false);
+  const [debtAmount, setDebtAmount] = useState("");
+  const [debtAction, setDebtAction] = useState<"borrow" | "repay">("borrow");
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Poll room state every 2.5s when in waiting/playing
   const pollRoom = useCallback(async (code: string) => {
     try {
       const res = await fetch(`${API}/rooms/${code}`);
       if (!res.ok) return;
       const data: Room = await res.json();
       setRoom(data);
-      if (data.status === "playing") setPhase("playing");
-      if (data.status === "finished") setPhase("finished");
-    } catch {/* ignore */}
+      if (data.status === "playing" || data.status === "finished") {
+        setAppPhase("game");
+      }
+    } catch {/* ignore */ }
   }, []);
 
   useEffect(() => {
-    if ((phase === "waiting" || phase === "playing") && room?.code) {
-      const iv = setInterval(() => pollRoom(room.code), 2500);
-      return () => clearInterval(iv);
+    if ((appPhase === "waiting" || appPhase === "game") && room?.code) {
+      pollingRef.current = setInterval(() => pollRoom(room.code), 2500);
+      return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }
-  }, [phase, room?.code, pollRoom]);
+  }, [appPhase, room?.code, pollRoom]);
 
-  function formatRp(n: number) {
-    return "Rp " + n.toLocaleString("id-ID");
-  }
-
-  function getSaldo(player: Player, modal: number) {
-    return player.transactions.reduce(
-      (acc, tx) => acc + (tx.tipe === "pemasukan" ? tx.jumlah : -tx.jumlah),
-      modal
-    );
+  async function post(path: string, body: object) {
+    const res = await fetch(`${API}/rooms/${room!.code}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: myId, ...body }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error");
+    await pollRoom(room!.code);
+    return data;
   }
 
   async function handleCreate() {
@@ -94,579 +139,693 @@ export default function GamePage() {
       const res = await fetch(`${API}/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostName: createName.trim(), maxPlayers, modalAwal: parseInt(modalAwal) || 500000 }),
+        body: JSON.stringify({ hostName: createName.trim(), boardColor: createColor, maxPlayers, modalAwal: parseInt(modalAwal) || 500000 }),
       });
       const data = await res.json();
-      if (!res.ok) return setErr(data.error || "Gagal membuat room");
+      if (!res.ok) return setErr(data.error);
       setMyId(data.playerId);
       await pollRoom(data.code);
-      setPhase("waiting");
+      setAppPhase("waiting");
     } catch { setErr("Gagal terhubung ke server"); }
     finally { setLoading(false); }
   }
 
   async function handleJoin() {
-    if (!joinName.trim()) return setErr("Nama tidak boleh kosong");
-    if (!joinCode.trim()) return setErr("Kode room tidak boleh kosong");
+    if (!joinName.trim() || !joinCode.trim()) return setErr("Lengkapi semua field");
     setLoading(true); setErr("");
     try {
       const res = await fetch(`${API}/rooms/${joinCode.toUpperCase()}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerName: joinName.trim() }),
+        body: JSON.stringify({ playerName: joinName.trim(), boardColor: joinColor }),
       });
       const data = await res.json();
-      if (!res.ok) return setErr(data.error || "Gagal bergabung");
+      if (!res.ok) return setErr(data.error);
       setMyId(data.playerId);
       await pollRoom(joinCode.toUpperCase());
-      setPhase("waiting");
+      setAppPhase("waiting");
     } catch { setErr("Gagal terhubung ke server"); }
     finally { setLoading(false); }
   }
 
   async function handleStart() {
-    if (!room) return;
     setLoading(true);
-    try {
-      const res = await fetch(`${API}/rooms/${room.code}/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: myId }),
-      });
-      const data = await res.json();
-      if (!res.ok) return setErr(data.error);
-      await pollRoom(room.code);
-      setPhase("playing");
-    } finally { setLoading(false); }
+    try { await post("/start", {}); setAppPhase("game"); }
+    catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
   }
 
-  async function handleAddTx() {
-    if (!room || !keterangan.trim() || !jumlah) return;
+  async function handleAction(action: ActionChoice) {
+    setLoading(true); setErr("");
+    try { await post("/action", { action, hutang: hutangModal }); setHutangModal(false); }
+    catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleCSR(amount: number | null) {
+    setLoading(true); setErr("");
+    try {
+      if (amount === null) { await post("/csr-skip", {}); }
+      else { await post("/csr", { amount }); }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleRevenue() {
+    setLoading(true); setErr("");
+    try { await post("/revenue", { pendapatan: parseInt(pendapatan) || 0, pajak: parseInt(pajak) || 0 }); setPendapatan(""); setPajak(""); }
+    catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleLembur(lembur: boolean) {
+    setLoading(true); setErr("");
+    try { await post("/lembur", { lembur }); }
+    catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleDebt() {
+    setLoading(true); setErr("");
+    try {
+      await post("/debt", { action: debtAction, amount: parseInt(debtAmount) || 0 });
+      setShowDebt(false); setDebtAmount("");
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleFinishEarly() {
+    if (!confirm("Akhiri permainan sekarang?")) return;
     setLoading(true);
-    try {
-      const res = await fetch(`${API}/rooms/${room.code}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: myId, keterangan, jumlah: parseInt(jumlah), tipe }),
-      });
-      const data = await res.json();
-      if (!res.ok) return setErr(data.error);
-      setKeterangan(""); setJumlah(""); setShowForm(false);
-      await pollRoom(room.code);
-    } finally { setLoading(false); }
+    try { await post("/finish-early", {}); }
+    catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error"); }
+    finally { setLoading(false); }
   }
 
-  async function handleDeleteTx(txId: string) {
-    if (!room) return;
-    await fetch(`${API}/rooms/${room.code}/transactions/${txId}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerId: myId }),
-    });
-    await pollRoom(room.code);
-  }
+  const myPlayer = room?.players.find(p => p.id === myId);
+  const isHost = room?.hostId === myId;
 
-  async function handleNextTurn() {
-    if (!room) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/rooms/${room.code}/next-turn`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: myId }),
-      });
-      const data = await res.json();
-      if (!res.ok) return setErr(data.error);
-      await pollRoom(room.code);
-      if (data.status === "finished") setPhase("finished");
-    } finally { setLoading(false); }
-  }
-
-  // ── LOBBY ──
-  if (phase === "lobby") {
-    return (
-      <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
-        <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
-          <button onClick={() => navigate("/")} className="text-white text-2xl">‹</button>
-          <div>
-            <h1 className="text-white font-black text-lg">Mulai Game</h1>
-            <p className="text-blue-300 text-xs">Buat atau gabung room permainan</p>
-          </div>
-          <span className="ml-auto text-3xl">🧮</span>
-        </div>
-        <div className="px-4 py-6 flex flex-col gap-4">
-          {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
-          <button onClick={() => { setErr(""); setPhase("create"); }}
+  // ── LOBBY ───────────────────────────────────────────────────────────────
+  if (appPhase === "lobby") return (
+    <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
+      <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
+        <button onClick={() => navigate("/")} className="text-white text-2xl">‹</button>
+        <div><h1 className="text-white font-black text-lg">Mulai Game</h1>
+          <p className="text-blue-300 text-xs">Buat atau gabung room</p></div>
+        <span className="ml-auto text-3xl">🧮</span>
+      </div>
+      <div className="px-4 py-5 flex flex-col gap-4">
+        {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
+        {[
+          { icon: "🏠", title: "Buat Room Baru", desc: "Jadi host, atur sesi & mulai permainan", phase: "create" as const, color: "#e8f4ff" },
+          { icon: "🚪", title: "Gabung Room", desc: "Masukkan kode room dari host", phase: "join" as const, color: "#e8ffe8" },
+        ].map(item => (
+          <button key={item.phase} onClick={() => { setErr(""); setAppPhase(item.phase); }}
             className="bg-white rounded-2xl p-5 flex items-center gap-4 shadow-sm text-left w-full active:scale-95 transition-transform">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "#e8f4ff" }}>🏠</div>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{ background: item.color }}>{item.icon}</div>
             <div>
-              <h3 className="font-black text-gray-800 text-base">Buat Room Baru</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Jadi host, dapatkan kode room untuk dibagikan ke pemain lain</p>
+              <h3 className="font-black text-gray-800 text-base">{item.title}</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
             </div>
           </button>
-          <button onClick={() => { setErr(""); setPhase("join"); }}
-            className="bg-white rounded-2xl p-5 flex items-center gap-4 shadow-sm text-left w-full active:scale-95 transition-transform">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "#e8ffe8" }}>🚪</div>
-            <div>
-              <h3 className="font-black text-gray-800 text-base">Gabung Room</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Masukkan kode room dari host untuk bergabung</p>
+        ))}
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h4 className="font-black text-gray-700 text-sm mb-3">📖 Alur Permainan</h4>
+          {[
+            ["🎯", "4 Ronde", "Setiap ronde terdiri dari 2 putaran + opsi lembur"],
+            ["💰", "Fase CSR", "Bayar Rp.4 → +1 KAP, Rp.7 → +2 KAP (opsional)"],
+            ["🎮", "Aksi", "Pilih: Upgrade (kreativitas), Social (jaringan), atau Expand (locus of control)"],
+            ["📊", "Pendapatan", "Hitung pelanggan × harga menu, bayar pajak cafe"],
+            ["🏆", "Menang", "Pemain dengan KAP tertinggi di akhir 4 ronde"],
+          ].map(([icon, title, desc]) => (
+            <div key={title as string} className="flex gap-3 mb-2.5 last:mb-0">
+              <span className="text-lg flex-shrink-0">{icon}</span>
+              <div>
+                <span className="font-black text-gray-700 text-xs">{title} </span>
+                <span className="text-gray-400 text-xs">{desc}</span>
+              </div>
             </div>
-          </button>
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h4 className="font-black text-gray-700 text-sm mb-2">📖 Cara Bermain</h4>
-            <div className="flex flex-col gap-2">
-              {[
-                ["1", "#2478d4", "Host buat room, atur jumlah pemain (2–4) dan modal awal"],
-                ["2", "#28a745", "Bagikan kode 4 huruf ke semua pemain"],
-                ["3", "#f0a020", "Tiap pemain bergantian catat transaksi di giliran masing-masing"],
-                ["4", "#9b59b6", "Lihat hasil keuangan semua tim di akhir game"],
-              ].map(([n, c, t]) => (
-                <div key={n} className="flex items-start gap-2">
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-black flex-shrink-0 mt-0.5" style={{ background: c }}>
-                    {n}
-                  </div>
-                  <p className="text-xs text-gray-500 leading-snug">{t}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // ── CREATE ROOM ──
-  if (phase === "create") {
+  // ── CREATE ───────────────────────────────────────────────────────────────
+  if (appPhase === "create") return (
+    <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
+      <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
+        <button onClick={() => { setErr(""); setAppPhase("lobby"); }} className="text-white text-2xl">‹</button>
+        <h1 className="text-white font-black text-lg">Buat Room</h1>
+      </div>
+      <div className="px-4 py-5 flex flex-col gap-4">
+        {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-2">Nama Kamu (Host)</h3>
+          <input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="Masukkan namamu..."
+            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400" />
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-3">Pilih Warna Board</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {BOARD_COLORS.map(c => (
+              <button key={c.value} onClick={() => setCreateColor(c.value)}
+                className="p-3 rounded-xl flex items-center gap-2 border-2 transition-all"
+                style={{ background: createColor === c.value ? c.bg : "#f8f8f8", borderColor: createColor === c.value ? c.text : "#e5e7eb" }}>
+                <span className="text-xl">{c.emoji}</span>
+                <span className="text-xs font-black" style={{ color: c.text }}>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-3">Jumlah Pemain</h3>
+          <div className="flex gap-2">
+            {[2, 3, 4].map(n => (
+              <button key={n} onClick={() => setMaxPlayers(n)}
+                className="flex-1 py-3 rounded-xl font-black text-lg transition-all"
+                style={{ background: maxPlayers === n ? "#1a3a6b" : "#f0f4ff", color: maxPlayers === n ? "#fff" : "#1a3a6b" }}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-2">Modal Awal per Pemain</h3>
+          <div className="flex gap-2 flex-wrap mb-2">
+            {["250000","500000","750000","1000000"].map(v => (
+              <button key={v} onClick={() => setModalAwal(v)}
+                className="px-3 py-1.5 rounded-xl font-bold text-xs"
+                style={{ background: modalAwal === v ? "#28a745" : "#f0f4ff", color: modalAwal === v ? "#fff" : "#28a745" }}>
+                {formatRp(parseInt(v))}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 text-sm">Rp</span>
+            <input type="number" value={modalAwal} onChange={e => setModalAwal(e.target.value)}
+              className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-green-400" />
+          </div>
+        </div>
+        <button onClick={handleCreate} disabled={loading}
+          className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
+          style={{ background: "linear-gradient(135deg, #1a3a6b, #2478d4)" }}>
+          {loading ? "Membuat..." : "🏠 Buat Room"}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── JOIN ─────────────────────────────────────────────────────────────────
+  if (appPhase === "join") return (
+    <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
+      <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
+        <button onClick={() => { setErr(""); setAppPhase("lobby"); }} className="text-white text-2xl">‹</button>
+        <h1 className="text-white font-black text-lg">Gabung Room</h1>
+      </div>
+      <div className="px-4 py-5 flex flex-col gap-4">
+        {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-2">Kode Room</h3>
+          <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
+            placeholder="Contoh: AB3X" maxLength={4}
+            className="w-full border-2 border-gray-200 rounded-xl px-3 py-3 text-3xl font-black text-center text-gray-800 outline-none focus:border-blue-400 tracking-widest" />
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-2">Namamu</h3>
+          <input value={joinName} onChange={e => setJoinName(e.target.value)} placeholder="Masukkan namamu..."
+            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400" />
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-800 text-sm mb-3">Pilih Warna Board</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {BOARD_COLORS.map(c => (
+              <button key={c.value} onClick={() => setJoinColor(c.value)}
+                className="p-3 rounded-xl flex items-center gap-2 border-2 transition-all"
+                style={{ background: joinColor === c.value ? c.bg : "#f8f8f8", borderColor: joinColor === c.value ? c.text : "#e5e7eb" }}>
+                <span className="text-xl">{c.emoji}</span>
+                <span className="text-xs font-black" style={{ color: c.text }}>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={handleJoin} disabled={loading}
+          className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
+          style={{ background: "linear-gradient(135deg, #28a745, #20c058)" }}>
+          {loading ? "Bergabung..." : "🚪 Gabung Room"}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── WAITING ROOM ─────────────────────────────────────────────────────────
+  if (appPhase === "waiting" && room) {
+    const takenColors = room.players.map(p => p.boardColor);
     return (
       <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
         <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
-          <button onClick={() => { setErr(""); setPhase("lobby"); }} className="text-white text-2xl">‹</button>
-          <h1 className="text-white font-black text-lg">Buat Room</h1>
+          <div className="flex-1"><h1 className="text-white font-black text-lg">Ruang Tunggu</h1>
+            <p className="text-blue-300 text-xs">Menunggu pemain bergabung...</p></div>
         </div>
-        <div className="px-4 py-5 flex flex-col gap-4">
-          {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h3 className="font-black text-gray-800 text-sm mb-2">Nama Kamu (Host)</h3>
-            <input type="text" value={createName} onChange={e => setCreateName(e.target.value)}
-              placeholder="Masukkan namamu..."
-              className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400" />
-          </div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h3 className="font-black text-gray-800 text-sm mb-3">Jumlah Pemain</h3>
-            <div className="flex gap-2">
-              {[2, 3, 4].map(n => (
-                <button key={n} onClick={() => setMaxPlayers(n)}
-                  className="flex-1 py-3 rounded-xl font-black text-lg transition-all"
-                  style={{ background: maxPlayers === n ? "#1a3a6b" : "#f0f4ff", color: maxPlayers === n ? "#fff" : "#1a3a6b", border: maxPlayers === n ? "none" : "2px solid #d0dcf0" }}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h3 className="font-black text-gray-800 text-sm mb-1">Modal Awal per Pemain</h3>
-            <p className="text-xs text-gray-400 mb-3">Sesuaikan dengan kartu modal dalam game</p>
-            <div className="flex gap-2 flex-wrap mb-3">
-              {["250000","500000","750000","1000000"].map(v => (
-                <button key={v} onClick={() => setModalAwal(v)}
-                  className="px-3 py-2 rounded-xl font-bold text-xs transition-all"
-                  style={{ background: modalAwal === v ? "#28a745" : "#f0f4ff", color: modalAwal === v ? "#fff" : "#28a745", border: modalAwal === v ? "none" : "2px solid #c8e8d0" }}>
-                  {formatRp(parseInt(v))}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500 text-sm font-semibold">Rp</span>
-              <input type="number" value={modalAwal} onChange={e => setModalAwal(e.target.value)}
-                className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-green-400"
-                placeholder="Nominal lain..." />
-            </div>
-          </div>
-          <button onClick={handleCreate} disabled={loading}
-            className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
-            style={{ background: "linear-gradient(135deg, #1a3a6b, #2478d4)" }}>
-            {loading ? "Membuat room..." : "🏠 Buat Room"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── JOIN ROOM ──
-  if (phase === "join") {
-    return (
-      <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
-        <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
-          <button onClick={() => { setErr(""); setPhase("lobby"); }} className="text-white text-2xl">‹</button>
-          <h1 className="text-white font-black text-lg">Gabung Room</h1>
-        </div>
-        <div className="px-4 py-5 flex flex-col gap-4">
-          {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h3 className="font-black text-gray-800 text-sm mb-2">Namamu</h3>
-            <input type="text" value={joinName} onChange={e => setJoinName(e.target.value)}
-              placeholder="Masukkan namamu..."
-              className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400" />
-          </div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h3 className="font-black text-gray-800 text-sm mb-2">Kode Room</h3>
-            <input type="text" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="Contoh: AB3X"
-              maxLength={4}
-              className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-2xl font-black text-center text-gray-800 outline-none focus:border-blue-400 tracking-widest" />
-          </div>
-          <button onClick={handleJoin} disabled={loading}
-            className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
-            style={{ background: "linear-gradient(135deg, #28a745, #20c058)" }}>
-            {loading ? "Bergabung..." : "🚪 Gabung Room"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── WAITING LOBBY ──
-  if (phase === "waiting" && room) {
-    const isHost = room.hostId === myId;
-    const myPlayer = room.players.find(p => p.id === myId);
-    return (
-      <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
-        <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background: "#1a3a6b" }}>
-          <div className="flex-1">
-            <h1 className="text-white font-black text-lg">Ruang Tunggu</h1>
-            <p className="text-blue-300 text-xs">Menunggu pemain lain bergabung...</p>
-          </div>
-        </div>
-        <div className="px-4 py-5 flex flex-col gap-4">
-          {/* Room code */}
-          <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
+        <div className="px-4 py-4 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl p-5 text-center shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Kode Room</p>
             <div className="text-5xl font-black tracking-widest" style={{ color: "#1a3a6b" }}>{room.code}</div>
-            <p className="text-xs text-gray-400 mt-2">Bagikan kode ini ke teman-temanmu</p>
+            <p className="text-xs text-gray-400 mt-1">Bagikan ke teman-temanmu</p>
           </div>
-          {/* Players list */}
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-4 py-2.5 border-b border-gray-100 flex justify-between">
               <h3 className="font-black text-gray-700 text-sm">Pemain</h3>
               <span className="text-xs font-bold text-gray-400">{room.players.length}/{room.maxPlayers}</span>
             </div>
-            {room.players.map((p, i) => (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black" style={{ background: ["#2478d4","#28a745","#f0a020","#9b59b6"][i] || "#888" }}>
-                  {p.name[0].toUpperCase()}
+            {room.players.map((p, i) => {
+              const bc = BOARD_COLORS.find(c => c.value === p.boardColor)!;
+              return (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-lg" style={colorStyle(p.boardColor)}>{bc.emoji}</div>
+                  <div className="flex-1">
+                    <span className="font-bold text-gray-800 text-sm">{p.name}</span>
+                    {p.id === myId && <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 font-bold px-2 py-0.5 rounded-full">Kamu</span>}
+                    <div className="text-xs" style={{ color: bc.text }}>{bc.label}</div>
+                  </div>
+                  {p.isHost && <span className="text-xs bg-yellow-100 text-yellow-700 font-bold px-2 py-0.5 rounded-full">Host 👑</span>}
+                  <span className="text-sm font-bold text-gray-600">#{i + 1}</span>
                 </div>
-                <div className="flex-1">
-                  <span className="font-bold text-gray-800 text-sm">{p.name}</span>
-                  {p.id === myId && <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 font-bold px-2 py-0.5 rounded-full">Kamu</span>}
-                </div>
-                {p.isHost && <span className="text-xs bg-yellow-100 text-yellow-700 font-bold px-2 py-0.5 rounded-full">Host 👑</span>}
-              </div>
-            ))}
+              );
+            })}
             {room.players.length < room.maxPlayers && (
-              <div className="flex items-center gap-3 px-4 py-3 opacity-40">
-                <div className="w-9 h-9 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-lg">+</div>
-                <span className="text-sm text-gray-400">Menunggu pemain...</span>
-              </div>
+              Array.from({ length: room.maxPlayers - room.players.length }).map((_, i) => {
+                const available = BOARD_COLORS.filter(c => !takenColors.includes(c.value));
+                return (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 opacity-35">
+                    <div className="w-9 h-9 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 text-sm">{available[i]?.emoji || "?"}</div>
+                    <span className="text-sm text-gray-400">Menunggu pemain...</span>
+                  </div>
+                );
+              })
             )}
           </div>
-          {/* Info */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm flex justify-around">
-            <div className="text-center">
-              <div className="text-xs text-gray-400 mb-0.5">Modal Awal</div>
-              <div className="font-black text-sm text-green-600">{formatRp(room.modalAwal)}</div>
-            </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm flex justify-around text-center">
+            <div><div className="text-xs text-gray-400">Modal Awal</div><div className="font-black text-sm text-green-600">{formatRp(room.modalAwal)}</div></div>
             <div className="w-px bg-gray-100" />
-            <div className="text-center">
-              <div className="text-xs text-gray-400 mb-0.5">Pemainku</div>
-              <div className="font-black text-sm text-gray-700">{myPlayer?.name}</div>
-            </div>
+            <div><div className="text-xs text-gray-400">Max Pemain</div><div className="font-black text-sm text-gray-700">{room.maxPlayers} orang</div></div>
+            <div className="w-px bg-gray-100" />
+            <div><div className="text-xs text-gray-400">Total Ronde</div><div className="font-black text-sm text-gray-700">4 Ronde</div></div>
           </div>
-          {isHost ? (
-            <button onClick={handleStart} disabled={loading || room.players.length < 2}
-              className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
-              style={{ background: room.players.length >= 2 ? "linear-gradient(135deg, #28a745, #20c058)" : "#ccc" }}>
-              {loading ? "Memulai..." : room.players.length < 2 ? "Minimal 2 pemain untuk mulai" : "🎮 Mulai Permainan!"}
-            </button>
-          ) : (
-            <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
-              <div className="text-2xl mb-1 animate-pulse">⏳</div>
-              <p className="text-sm font-bold text-gray-500">Menunggu host memulai permainan...</p>
-            </div>
-          )}
+          {isHost
+            ? <button onClick={handleStart} disabled={loading || room.players.length < 2}
+                className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
+                style={{ background: room.players.length >= 2 ? "linear-gradient(135deg,#28a745,#20c058)" : "#ccc" }}>
+                {loading ? "Memulai..." : room.players.length < 2 ? "Butuh minimal 2 pemain" : "🎮 Mulai Permainan!"}
+              </button>
+            : <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+                <div className="text-2xl mb-1 animate-pulse">⏳</div>
+                <p className="text-sm font-bold text-gray-500">Menunggu host memulai...</p>
+              </div>
+          }
         </div>
       </div>
     );
   }
 
-  // ── PLAYING ──
-  if (phase === "playing" && room) {
+  // ── GAME ─────────────────────────────────────────────────────────────────
+  if (appPhase === "game" && room && myPlayer) {
     const currentPlayer = room.players[room.currentTurnIndex];
     const isMyTurn = currentPlayer?.id === myId;
-    const myPlayer = room.players.find(p => p.id === myId)!;
-    const myIndex = room.players.findIndex(p => p.id === myId);
+    const myActedCSR = myPlayer.csrPaidThisRound;
+    const myActedRevenue = room.actedThisPutaran.includes(myId + "_rev");
+    const myActedLembur = room.actedThisPutaran.includes(myId + "_lembur");
+    const myActedAction = room.actedThisPutaran.includes(myId);
+    const bc = BOARD_COLORS.find(c => c.value === myPlayer.boardColor)!;
+
+    // ── FINISHED ──
+    if (room.status === "finished") {
+      const sorted = [...room.players].sort((a, b) => b.kapScore - a.kapScore);
+      const medals = ["🥇","🥈","🥉","4️⃣"];
+      return (
+        <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
+          <div className="px-4 pt-6 pb-4 text-center" style={{ background: "#1a3a6b" }}>
+            <div className="text-5xl mb-2">🏆</div>
+            <h1 className="text-white font-black text-xl">Permainan Selesai!</h1>
+            <p className="text-blue-300 text-xs mt-1">Room: {room.code}</p>
+          </div>
+          <div className="px-4 py-4 flex flex-col gap-4">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-4 py-2.5 border-b border-gray-100">
+                <h3 className="font-black text-gray-700 text-sm">🏆 Ranking KAP Final</h3>
+              </div>
+              {sorted.map((p, i) => {
+                const pbc = BOARD_COLORS.find(c => c.value === p.boardColor)!;
+                return (
+                  <div key={p.id} className="px-4 py-3.5 border-b border-gray-50 last:border-0"
+                    style={{ background: i === 0 ? "#fffbeb" : "transparent" }}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">{medals[i]}</span>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-lg font-black" style={colorStyle(p.boardColor)}>{pbc.emoji}</div>
+                      <div className="flex-1">
+                        <div className="font-black text-gray-800 text-sm">{p.name}{p.id === myId && " (Kamu)"}</div>
+                        <div className="text-xs" style={{ color: pbc.text }}>{pbc.label}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-black text-xl" style={{ color: "#1a3a6b" }}>{p.kapScore}</div>
+                        <div className="text-[10px] text-gray-400">KAP</div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 pl-12">
+                      <KAPBar label="Kreativitas" value={p.kap.kreativitas} color="#2478d4" />
+                      <KAPBar label="Social Network" value={p.kap.socialNetworking} color="#28a745" />
+                      <KAPBar label="Locus of Control" value={p.kap.internalLocus} color="#9b59b6" />
+                      <KAPBar label="Toleransi Ambiguitas" value={p.kap.toleransiAmbiguitas} color="#f0a020" />
+                    </div>
+                    <div className="flex justify-between mt-2 pl-12">
+                      <span className="text-xs text-gray-400">Uang akhir: <span className="font-bold text-gray-700">{formatRp(p.money)}</span></span>
+                      {p.hutang > 0 && <span className="text-xs text-red-500 font-bold">Hutang: {formatRp(p.hutang)}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => navigate("/")}
+              className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg active:scale-95 transition-transform"
+              style={{ background: "linear-gradient(135deg,#1a3a6b,#2478d4)" }}>
+              🏠 Kembali ke Beranda
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="flex flex-col flex-1 overflow-hidden" style={{ background: "#d6eeff" }}>
-        {/* Header */}
+        {/* ── Top Bar ── */}
         <div className="flex-shrink-0" style={{ background: "#1a3a6b" }}>
-          <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-            <div className="flex-1">
-              <h1 className="text-white font-black text-base">Hitung Keuangan</h1>
-              <p className="text-blue-300 text-[10px]">Room: <span className="font-black tracking-wider">{room.code}</span></p>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] text-blue-300">Giliranku ke-{myIndex + 1}</div>
-              <div className="font-black text-sm" style={{ color: getSaldo(myPlayer, room.modalAwal) >= room.modalAwal ? "#4ade80" : "#f87171" }}>
-                {formatRp(getSaldo(myPlayer, room.modalAwal))}
+          <div className="flex items-center gap-2 px-3 pt-3 pb-1">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-base" style={colorStyle(myPlayer.boardColor)}>{bc.emoji}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-black text-sm truncate">{myPlayer.name}</div>
+              <div className="text-blue-300 text-[10px]">
+                <span className="font-bold text-yellow-300">Ronde {room.currentRonde}/4</span>
+                {" · "}Putaran {room.currentPutaran}
+                {" · "}<span className="font-bold text-blue-200">{PHASE_LABELS[room.phase]}</span>
               </div>
             </div>
+            <div className="text-right flex-shrink-0">
+              <div className="font-black text-sm text-white">{formatRp(myPlayer.money)}</div>
+              <div className="text-[10px] text-blue-300">KAP: <span className="text-yellow-300 font-black">{myPlayer.kapScore}</span></div>
+            </div>
+            {isHost && (
+              <button onClick={handleFinishEarly} className="ml-1 text-red-300 text-[10px] font-bold border border-red-400 px-1.5 py-0.5 rounded-lg">Akhiri</button>
+            )}
           </div>
-          {/* Turn indicator row */}
-          <div className="flex gap-1 px-3 pb-3 overflow-x-auto">
-            {room.players.map((p, i) => {
-              const isCurrent = i === room.currentTurnIndex;
-              const isDone = i < room.currentTurnIndex;
-              const saldo = getSaldo(p, room.modalAwal);
+
+          {/* Player mini-tabs */}
+          <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
+            {room.players.map(p => {
+              const pbc = BOARD_COLORS.find(c => c.value === p.boardColor)!;
+              const isCurrent = p.id === (room.phase === "operational" ? currentPlayer?.id : undefined);
               return (
-                <div key={p.id} className="flex-shrink-0 px-2.5 py-1.5 rounded-xl text-center min-w-[68px]"
-                  style={{ background: isCurrent ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", border: isCurrent ? "2px solid rgba(255,255,255,0.5)" : "2px solid transparent", opacity: isDone ? 0.5 : 1 }}>
-                  <div className="text-white font-black text-[11px] truncate max-w-[64px]">{p.id === myId ? "Kamu" : p.name}</div>
-                  <div className="font-bold text-[9px]" style={{ color: saldo > room.modalAwal ? "#4ade80" : saldo < room.modalAwal ? "#f87171" : "#93c5fd" }}>
-                    {formatRp(saldo)}
+                <div key={p.id} className="flex-shrink-0 px-2 py-1 rounded-xl min-w-[64px]"
+                  style={{ background: isCurrent ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.07)", border: isCurrent ? "2px solid rgba(255,255,255,0.5)" : "2px solid transparent" }}>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm">{pbc.emoji}</span>
+                    <span className="text-white font-black text-[10px] truncate max-w-[48px]">{p.id === myId ? "Kamu" : p.name}</span>
                   </div>
-                  {isDone && <div className="text-[8px] text-green-400">✓ selesai</div>}
-                  {isCurrent && <div className="text-[8px] text-yellow-300">● giliran</div>}
+                  <div className="font-black text-[10px] text-yellow-300">{p.kapScore} KAP</div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Body */}
+        {/* ── Body ── */}
         <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
-          {/* Not my turn overlay */}
-          {!isMyTurn && (
-            <div className="bg-white rounded-2xl p-5 text-center shadow-sm">
-              <div className="text-5xl mb-2 animate-pulse">⏳</div>
-              <h3 className="font-black text-gray-700 text-base">Bukan Giliranmu</h3>
-              <p className="text-sm text-gray-400 mt-1">
-                Sekarang giliran <span className="font-black text-gray-700">{currentPlayer?.name}</span> mencatat transaksi
-              </p>
-              <div className="mt-3 px-4 py-2 rounded-xl bg-blue-50">
-                <p className="text-xs text-blue-500 font-semibold">Halaman ini otomatis update saat giliran berganti</p>
+          {err && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
+
+          {/* Debt modal */}
+          {showDebt && (
+            <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-orange-200">
+              <h3 className="font-black text-gray-800 text-sm mb-3">💳 Kelola Hutang</h3>
+              <div className="flex gap-2 mb-3">
+                {(["borrow","repay"] as const).map(a => (
+                  <button key={a} onClick={() => setDebtAction(a)}
+                    className="flex-1 py-2 rounded-xl font-black text-xs transition-all"
+                    style={{ background: debtAction === a ? (a === "borrow" ? "#16a34a" : "#dc2626") : "#f5f5f5",
+                      color: debtAction === a ? "#fff" : "#666" }}>
+                    {a === "borrow" ? "💰 Pinjam" : "💸 Bayar Hutang"}
+                  </button>
+                ))}
+              </div>
+              {debtAction === "repay" && <p className="text-[10px] text-orange-500 font-bold mb-2">⚠ Pinjam Rp.3 → Bayar Rp.4 (bunga ~33%)</p>}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-gray-500 text-sm">Rp</span>
+                <input type="number" value={debtAmount} onChange={e => setDebtAmount(e.target.value)}
+                  className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-orange-400" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowDebt(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gray-100 text-gray-600">Batal</button>
+                <button onClick={handleDebt} disabled={loading || !debtAmount}
+                  className="flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50"
+                  style={{ background: debtAction === "borrow" ? "#16a34a" : "#dc2626" }}>
+                  {loading ? "..." : "Konfirmasi"}
+                </button>
               </div>
             </div>
           )}
 
-          {/* Saldo card — always visible for current player */}
-          {isMyTurn && (
+          {/* ── CSR PHASE ── */}
+          {room.phase === "csr" && (
             <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Saldo Kamu</span>
-                <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Giliran Kamu 🎯</span>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">💝</span>
+                <h3 className="font-black text-gray-800 text-base">Fase CSR – Ronde {room.currentRonde}</h3>
               </div>
-              <div className="text-3xl font-black text-center mb-1"
-                style={{ color: getSaldo(myPlayer, room.modalAwal) >= room.modalAwal ? "#16a34a" : "#dc2626" }}>
-                {formatRp(getSaldo(myPlayer, room.modalAwal))}
-              </div>
-              <div className="flex justify-around mt-3">
-                <div className="text-center">
-                  <div className="text-xs text-gray-400">Modal</div>
-                  <div className="font-black text-xs text-gray-700">{formatRp(room.modalAwal)}</div>
-                </div>
-                <div className="w-px bg-gray-100" />
-                <div className="text-center">
-                  <div className="text-xs text-gray-400">Masuk</div>
-                  <div className="font-black text-xs text-green-600">
-                    +{formatRp(myPlayer.transactions.filter(t => t.tipe === "pemasukan").reduce((a, t) => a + t.jumlah, 0))}
-                  </div>
-                </div>
-                <div className="w-px bg-gray-100" />
-                <div className="text-center">
-                  <div className="text-xs text-gray-400">Keluar</div>
-                  <div className="font-black text-xs text-red-500">
-                    -{formatRp(myPlayer.transactions.filter(t => t.tipe === "pengeluaran").reduce((a, t) => a + t.jumlah, 0))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* All players summary (visible to all) */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-4 py-2.5 border-b border-gray-100">
-              <h3 className="font-black text-gray-700 text-sm">Papan Skor</h3>
-            </div>
-            {room.players.map((p, i) => {
-              const saldo = getSaldo(p, room.modalAwal);
-              const untung = saldo > room.modalAwal;
-              const rugi = saldo < room.modalAwal;
-              const isCurrent = i === room.currentTurnIndex;
-              return (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0"
-                  style={{ background: isCurrent ? "#f0f9ff" : "transparent" }}>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-sm"
-                    style={{ background: ["#2478d4","#28a745","#f0a020","#9b59b6"][i] || "#888" }}>
-                    {p.name[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1">
-                    <span className="font-bold text-gray-800 text-sm">{p.id === myId ? `${p.name} (Kamu)` : p.name}</span>
-                    {isCurrent && <span className="ml-1 text-[9px] text-yellow-600 font-bold">● giliran</span>}
-                  </div>
-                  <div className="text-right">
-                    <div className="font-black text-sm" style={{ color: untung ? "#16a34a" : rugi ? "#dc2626" : "#666" }}>
-                      {formatRp(saldo)}
-                    </div>
-                    <div className="text-[10px]" style={{ color: untung ? "#16a34a" : rugi ? "#dc2626" : "#999" }}>
-                      {untung ? `▲ +${formatRp(saldo - room.modalAwal)}` : rugi ? `▼ -${formatRp(room.modalAwal - saldo)}` : "±0"}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Transaction form & list — only when my turn */}
-          {isMyTurn && (
-            <>
-              {showForm ? (
-                <div className="bg-white rounded-2xl p-4 shadow-sm">
-                  <h3 className="font-black text-gray-800 text-sm mb-3">Tambah Transaksi</h3>
-                  <div className="flex gap-2 mb-3">
-                    <button onClick={() => setTipe("pemasukan")}
-                      className="flex-1 py-2 rounded-xl font-black text-sm transition-all"
-                      style={{ background: tipe === "pemasukan" ? "#16a34a" : "#f0fdf4", color: tipe === "pemasukan" ? "#fff" : "#16a34a", border: tipe === "pemasukan" ? "none" : "2px solid #bbf7d0" }}>
-                      ↑ Pemasukan
-                    </button>
-                    <button onClick={() => setTipe("pengeluaran")}
-                      className="flex-1 py-2 rounded-xl font-black text-sm transition-all"
-                      style={{ background: tipe === "pengeluaran" ? "#dc2626" : "#fff5f5", color: tipe === "pengeluaran" ? "#fff" : "#dc2626", border: tipe === "pengeluaran" ? "none" : "2px solid #fecaca" }}>
-                      ↓ Pengeluaran
-                    </button>
-                  </div>
-                  <input type="text" value={keterangan} onChange={e => setKeterangan(e.target.value)}
-                    placeholder="Keterangan (mis: Jual kopi, Beli bahan...)"
-                    className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-400 mb-2" />
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-gray-500 font-semibold text-sm">Rp</span>
-                    <input type="number" value={jumlah} onChange={e => setJumlah(e.target.value)}
-                      placeholder="Nominal..."
-                      className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400" />
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap mb-3">
-                    {["5000","10000","25000","50000","100000"].map(v => (
-                      <button key={v} onClick={() => setJumlah(v)}
-                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gray-100 text-gray-600 active:bg-gray-200">
-                        {parseInt(v) >= 1000 ? parseInt(v)/1000+"rb" : v}
-                      </button>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                Bayar ke bank untuk mendapatkan poin KAP (Kebutuhan akan Berprestasi). Opsional — boleh skip.
+              </p>
+              {myActedCSR ? (
+                <div className="text-center py-3 bg-green-50 rounded-xl">
+                  <span className="text-2xl">✅</span>
+                  <p className="text-sm font-bold text-green-700 mt-1">Sudah memilih CSR</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Menunggu pemain lain...</p>
+                  <div className="flex justify-center gap-2 mt-3 flex-wrap">
+                    {room.players.map(p => (
+                      <span key={p.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: p.csrPaidThisRound ? "#dcfce7" : "#fee2e2", color: p.csrPaidThisRound ? "#16a34a" : "#dc2626" }}>
+                        {p.id === myId ? "Kamu" : p.name} {p.csrPaidThisRound ? "✓" : "⏳"}
+                      </span>
                     ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowForm(false)} className="flex-1 py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-600">Batal</button>
-                    <button onClick={handleAddTx} disabled={!keterangan.trim() || !jumlah || loading}
-                      className="flex-[2] py-3 rounded-xl font-black text-sm text-white disabled:opacity-50"
-                      style={{ background: tipe === "pemasukan" ? "#16a34a" : "#dc2626" }}>
-                      {loading ? "Menyimpan..." : "Simpan"}
-                    </button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowForm(true)}
-                  className="w-full py-3.5 rounded-2xl text-white font-black text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
-                  style={{ background: "linear-gradient(135deg, #2478d4, #1a5fb0)" }}>
-                  <span className="text-lg">+</span> Catat Transaksi Baru
-                </button>
-              )}
-
-              {myPlayer.transactions.length > 0 && (
-                <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                  <div className="px-4 py-2.5 border-b border-gray-100">
-                    <h3 className="font-black text-gray-700 text-sm">Transaksi Saya ({myPlayer.transactions.length})</h3>
-                  </div>
-                  {[...myPlayer.transactions].reverse().map(tx => (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0"
-                        style={{ background: tx.tipe === "pemasukan" ? "#16a34a" : "#dc2626" }}>
-                        {tx.tipe === "pemasukan" ? "↑" : "↓"}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-gray-800 text-sm truncate">{tx.keterangan}</div>
-                        <div className="text-[10px] text-gray-400">{tx.waktu}</div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="font-black text-sm" style={{ color: tx.tipe === "pemasukan" ? "#16a34a" : "#dc2626" }}>
-                          {tx.tipe === "pemasukan" ? "+" : "-"}{formatRp(tx.jumlah)}
-                        </div>
-                        <button onClick={() => handleDeleteTx(tx.id)} className="text-[10px] text-gray-300 hover:text-red-400">hapus</button>
-                      </div>
-                    </div>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { amount: 4, kap: 1, label: "Bayar Rp.4 → +1 KAP", color: "#2478d4" },
+                    { amount: 7, kap: 2, label: "Bayar Rp.7 → +2 KAP", color: "#9b59b6" },
+                  ].map(opt => (
+                    <button key={opt.amount} onClick={() => handleCSR(opt.amount)} disabled={loading || myPlayer.money < opt.amount}
+                      className="w-full py-3 rounded-xl font-black text-sm text-white disabled:opacity-40 active:scale-95 transition-transform"
+                      style={{ background: opt.color }}>
+                      {opt.label}
+                      {myPlayer.money < opt.amount && " (uang kurang)"}
+                    </button>
                   ))}
+                  <button onClick={() => handleCSR(null)} disabled={loading}
+                    className="w-full py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-500">
+                    Skip CSR
+                  </button>
                 </div>
               )}
+            </div>
+          )}
 
-              <button onClick={() => { if (confirm("Selesaikan giliran kamu dan lempar ke pemain berikutnya?")) handleNextTurn(); }}
-                disabled={loading}
-                className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
-                style={{ background: "linear-gradient(135deg, #f0a020, #e08010)" }}>
-                {loading ? "Menyimpan..." : "✅ Selesai Giliran →"}
-              </button>
+          {/* ── OPERATIONAL PHASE ── */}
+          {room.phase === "operational" && (
+            <>
+              {isMyTurn && !myActedAction ? (
+                <div className="bg-white rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-2xl">🎮</span>
+                    <h3 className="font-black text-gray-800 text-base">Giliranmu! Pilih Aksi</h3>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-4">Pilih 1 aksi untuk putaran ini. Aksi yang sama dengan pemain sebelumnya akan menaikkan Toleransi Ambiguitas.</p>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { action: "upgrade" as const, icon: "⬆️", label: "Upgrade", desc: `Naikkan Kreativitas (level ${myPlayer.kap.kreativitas} → ${myPlayer.kap.kreativitas + 1})`, color: "#2478d4", kap: "Kreativitas" },
+                      { action: "social" as const, icon: "🤝", label: "Social", desc: `Naikkan Social Networking (biaya Rp.${myPlayer.kap.socialNetworking + 1})`, color: "#28a745", kap: "Social" },
+                      { action: "expand" as const, icon: "🏪", label: "Expand", desc: `Naikkan Locus of Control (level ${myPlayer.kap.internalLocus} → ${myPlayer.kap.internalLocus + 1})`, color: "#9b59b6", kap: "Locus" },
+                    ].map(opt => (
+                      <button key={opt.action} onClick={() => handleAction(opt.action)} disabled={loading}
+                        className="w-full p-3.5 rounded-xl text-left flex items-center gap-3 active:scale-95 transition-transform disabled:opacity-60"
+                        style={{ background: opt.color + "15", border: `2px solid ${opt.color}30` }}>
+                        <span className="text-2xl">{opt.icon}</span>
+                        <div className="flex-1">
+                          <div className="font-black text-sm" style={{ color: opt.color }}>{opt.label}</div>
+                          <div className="text-xs text-gray-500">{opt.desc}</div>
+                        </div>
+                        <span className="text-lg">›</span>
+                      </button>
+                    ))}
+                  </div>
+                  {myPlayer.kap.socialNetworking > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input type="checkbox" id="hutang" checked={hutangModal} onChange={e => setHutangModal(e.target.checked)} className="w-4 h-4 accent-orange-500" />
+                      <label htmlFor="hutang" className="text-xs font-bold text-orange-600">Bayar aksi Social via hutang (naikkan Bersedia Risiko)</label>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+                  {myActedAction ? (
+                    <>
+                      <span className="text-3xl">✅</span>
+                      <p className="text-sm font-bold text-green-700 mt-1">Aksi selesai!</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {room.actedThisPutaran.filter(x => !x.includes("_")).length}/{room.players.length} pemain sudah beraksi
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-3xl animate-pulse">⏳</span>
+                      <p className="text-sm font-bold text-gray-600 mt-1">Giliran <span className="text-gray-800">{currentPlayer?.name}</span></p>
+                      <p className="text-xs text-gray-400 mt-0.5">Tunggu giliranmu...</p>
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
-        </div>
-      </div>
-    );
-  }
 
-  // ── FINISHED ──
-  if (phase === "finished" && room) {
-    const sorted = [...room.players].sort((a, b) =>
-      getSaldo(b, room.modalAwal) - getSaldo(a, room.modalAwal)
-    );
-    const medals = ["🥇","🥈","🥉","4️⃣"];
-    return (
-      <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#d6eeff" }}>
-        <div className="px-4 pt-6 pb-4 text-center" style={{ background: "#1a3a6b" }}>
-          <div className="text-5xl mb-2">🏆</div>
-          <h1 className="text-white font-black text-xl">Permainan Selesai!</h1>
-          <p className="text-blue-300 text-xs mt-1">Room: {room.code}</p>
-        </div>
-        <div className="px-4 py-5 flex flex-col gap-4">
+          {/* ── REVENUE PHASE ── */}
+          {room.phase === "revenue" && (
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">📊</span>
+                <h3 className="font-black text-gray-800 text-base">Hitung Pendapatan</h3>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">Hitung pelanggan × harga menu di areamamu, lalu masukkan pajak cafe.</p>
+              {myActedRevenue ? (
+                <div className="text-center py-3 bg-green-50 rounded-xl">
+                  <span className="text-2xl">✅</span>
+                  <p className="text-sm font-bold text-green-700 mt-1">Sudah input pendapatan</p>
+                  <p className="text-xs text-gray-400">Menunggu pemain lain...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-2 mb-3">
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 mb-1 block">💵 Pendapatan (pelanggan × menu)</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500 text-sm">Rp</span>
+                        <input type="number" value={pendapatan} onChange={e => setPendapatan(e.target.value)}
+                          placeholder="0" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-green-400" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 mb-1 block">🏛 Pajak Cafe</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500 text-sm">Rp</span>
+                        <input type="number" value={pajak} onChange={e => setPajak(e.target.value)}
+                          placeholder="0" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-red-400" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-2.5 text-center mb-3">
+                    <span className="text-xs text-gray-500">Hasil Bersih: </span>
+                    <span className="font-black text-sm" style={{ color: (parseInt(pendapatan)||0) - (parseInt(pajak)||0) >= 0 ? "#16a34a" : "#dc2626" }}>
+                      {formatRp((parseInt(pendapatan)||0) - (parseInt(pajak)||0))}
+                    </span>
+                  </div>
+                  <button onClick={handleRevenue} disabled={loading}
+                    className="w-full py-3 rounded-xl font-black text-sm text-white disabled:opacity-60 active:scale-95 transition-transform"
+                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                    {loading ? "Menyimpan..." : "✅ Konfirmasi Pendapatan"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── LEMBUR PHASE ── */}
+          {room.phase === "lembur_offer" && (
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">⏰</span>
+                <h3 className="font-black text-gray-800 text-base">Tawaran Lembur</h3>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">
+                Bayar <strong>Rp.5</strong> ke bank untuk 1 putaran lembur tambahan. Pemain yang skip tidak ikut lembur.
+              </p>
+              {myActedLembur ? (
+                <div className="text-center py-3 bg-green-50 rounded-xl">
+                  <span className="text-2xl">✅</span>
+                  <p className="text-sm font-bold text-green-700 mt-1">{myPlayer.lemburThisRound ? "Memilih lembur!" : "Skip lembur"}</p>
+                  <p className="text-xs text-gray-400">Menunggu pemain lain...</p>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={() => handleLembur(true)} disabled={loading || myPlayer.money < 5}
+                    className="flex-1 py-3 rounded-xl font-black text-sm text-white disabled:opacity-40"
+                    style={{ background: "#f0a020" }}>
+                    ⏰ Lembur (Rp.5){myPlayer.money < 5 && " ✗"}
+                  </button>
+                  <button onClick={() => handleLembur(false)} disabled={loading}
+                    className="flex-1 py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-600">
+                    Skip
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── KAP Tracker ── */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <h3 className="font-black text-gray-700 text-sm mb-3">📊 KAP Tracker — {myPlayer.name}</h3>
+            <div className="flex flex-col gap-2 mb-3">
+              <KAPBar label="Kreativitas" value={myPlayer.kap.kreativitas} color="#2478d4" />
+              <KAPBar label="Social Networking" value={myPlayer.kap.socialNetworking} color="#28a745" />
+              <KAPBar label="Locus of Control" value={myPlayer.kap.internalLocus} color="#9b59b6" />
+              <KAPBar label="Toleransi Ambiguitas" value={myPlayer.kap.toleransiAmbiguitas} color="#f0a020" />
+              <KAPBar label="Bersedia Risiko" value={myPlayer.kap.bersediaRisiko} max={5} color="#e84393" />
+            </div>
+            <div className="flex items-center justify-between bg-blue-50 rounded-xl px-3 py-2">
+              <span className="text-xs font-bold text-blue-600">Total KAP</span>
+              <span className="font-black text-xl text-blue-700">{myPlayer.kapScore}</span>
+            </div>
+            {myPlayer.hutang > 0 && (
+              <div className="mt-2 flex items-center justify-between bg-red-50 rounded-xl px-3 py-2">
+                <span className="text-xs font-bold text-red-500">Hutang</span>
+                <span className="font-black text-sm text-red-600">{formatRp(myPlayer.hutang)}</span>
+              </div>
+            )}
+            <button onClick={() => setShowDebt(!showDebt)}
+              className="mt-2 w-full py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200">
+              💳 Kelola Hutang Bank
+            </button>
+          </div>
+
+          {/* ── All Players Leaderboard ── */}
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
             <div className="px-4 py-2.5 border-b border-gray-100">
-              <h3 className="font-black text-gray-700 text-sm">Hasil Akhir</h3>
+              <h3 className="font-black text-gray-700 text-sm">🏆 Papan KAP</h3>
             </div>
-            {sorted.map((p, i) => {
-              const saldo = getSaldo(p, room.modalAwal);
-              const selisih = saldo - room.modalAwal;
+            {[...room.players].sort((a, b) => b.kapScore - a.kapScore).map((p, i) => {
+              const pbc = BOARD_COLORS.find(c => c.value === p.boardColor)!;
               return (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-4 border-b border-gray-50 last:border-0"
-                  style={{ background: i === 0 ? "#fffbeb" : "transparent" }}>
-                  <span className="text-2xl">{medals[i]}</span>
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black"
-                    style={{ background: ["#2478d4","#28a745","#f0a020","#9b59b6"][room.players.findIndex(pl => pl.id === p.id)] || "#888" }}>
-                    {p.name[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-black text-gray-800 text-sm">{p.name}{p.id === myId && " (Kamu)"}</div>
-                    <div className="text-xs" style={{ color: selisih >= 0 ? "#16a34a" : "#dc2626" }}>
-                      {selisih >= 0 ? `Untung +${formatRp(selisih)}` : `Rugi -${formatRp(Math.abs(selisih))}`}
-                    </div>
+                <div key={p.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                  <span className="text-base w-5">{["🥇","🥈","🥉","4️⃣"][i]}</span>
+                  <span className="text-xl">{pbc.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 text-sm truncate">{p.id === myId ? `${p.name} (Kamu)` : p.name}</div>
+                    <div className="text-[10px]" style={{ color: pbc.text }}>{pbc.label}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-black text-base" style={{ color: saldo >= room.modalAwal ? "#16a34a" : "#dc2626" }}>
-                      {formatRp(saldo)}
-                    </div>
-                    <div className="text-[10px] text-gray-400">{p.transactions.length} transaksi</div>
+                    <div className="font-black text-lg" style={{ color: "#1a3a6b" }}>{p.kapScore}</div>
+                    <div className="text-[10px] text-gray-400">{formatRp(p.money)}</div>
                   </div>
                 </div>
               );
             })}
           </div>
-          <button onClick={() => navigate("/")}
-            className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg active:scale-95 transition-transform"
-            style={{ background: "linear-gradient(135deg, #1a3a6b, #2478d4)" }}>
-            🏠 Kembali ke Beranda
-          </button>
         </div>
       </div>
     );

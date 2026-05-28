@@ -1,0 +1,53 @@
+aturan umum dalam game:
+1. game terbagi atas 4 board warna berbeda, merah adalah area hotel, biru adalah area sekolah. kining area kantor, dan hijuau area taman.
+2. setiap ronde akan ada pelanggan untuk setiap board
+3. game berjalan dengan 4 ronde
+4. setiap ronde permainan berjajalan 2x putaran permainan, dan mengikuti alur permaian
+5. setelah 2x putaran, setiap pemain boleh memilih lembur dengan memainkan 1x permainan dan membayar sebesar Rp. 5 ke bank
+6. pemain yang tidak mau lembur boleh skip
+7. setiap permain memiliki leaderboard/papan indikator nilai sebagai perhitungan KAP
+ - perhitungan KAP (kebutuhan akan berprestasi)
+ - bersedia menerima resiko (sebagai perhitungan jika pemain berhutang)
+ - kreativitas ( sebagai perhitungan langkah upgrade, jika sudah langkah ke 3 nambah KAP 1, langkah ke 5 nambah KAP 2, langkah ke 7 nambah KAP 3)
+ - social networking ( sebagai perhitungan langkah social, jika sudah langkah ke 3 nambah KAP 1, langkah ke 5 nambah KAP 2, langkah ke 7 nambah KAP 3)
+ - internal locus of control ( sebagai perhitungan langkah social, jika sudah langkah ke 3 nambah KAP 1, langkah ke 4 nambah KAP 2, langkah ke 6 nambah KAP 3, langkah ke 7 nambah KAP 4)
+ - toleransi terhadap ambiguitas ( sebagai perhitungan langkah fomo, jika pemain memilih langkah yang sama dengan pemain sebelumnya makan akan menambah level ini 1, jika sudah poin ke 2 mengurangi KAP 1, poin ke 4 mengurangi KAP 2, poin ke 7 mengurangi KAP 3) 
+7. setiap pemain memiliki papan pemain, dalam papan pemain terdapat 3 opsi pilihan bermain: Upgrade, social, dan expand
+8. jika memilih upgrade : 
+- naikkan kreativitas 1 tingkat
+- pilih upgrade untuk didapatkan (pilih cafe yang akan di upgrade, bisa tambah menu di cafe, naikkan harga, dan tambah kursi di cafe)
+- bisa juga untuk memindahkan menu atau kursi ke cafe yang lain
+9. jika memilih social :
+- naikkan level social networking, bayar sesuai harga tingkat (harga sesuai tingkatan, 1=Rp.1 2= Rp.2)
+- pilih area yang akan dinaikkan social nya
+- tambahkan 1 pelanggan di area tersebut
+10. jika pilih expand :
+- pilih toko yang ingin dibeli
+- pembelian melalui sistem bidding
+- open bid adalah harga yang di inginkan oleh pemain expand, sesuai dengangan harga cafe
+- proses opend bida akan menawarkan bid ke pemain lain hingga terdapat harga yang disetujui oleh semua pemain, maksimal 3x harga
+- buy out adalah harga yang bisa langsung dibayarkan oleh pemain yaitu 3x harga cafe
+- naikkan level internal locus of control satu
+11. untuk pembelian apapun bisa hutang, hutang akan menaikkan level bersedia menanggung resiko, setiap level di hargai Rp.3 dan saat mengembalikan dana tersebut bayar Rp. 4
+12. dalam permainan setiap langkah akan menentukan perhitungan KAP dalam leaderboard. KAP yang akan menentukan kemenangan pemain
+ 
+urutan bermain dalam game:
+
+1. permian berada dalam 1 game area
+- pemain mengisikan warna board masing masing
+- pemain mengisikan nama
+- pemain menentukan urutan bermain setiap orang
+2. buka kartu ronde (isi kartu ronde dipilih oleh host, list kartu ronde menyusul
+3. fase CSR, pemain membayar uang untuk menaikkan KAP (kebutuhan atas prestasi) Rp. 4 = 1 KAP, Rp. 7 = 2 KAP
+4. fase operasional, permainan dimulai dari pemain pertama
+5. permainan dalam 1 ronde dilakukan dalam 2 putaran
+6. perhitungan hasil usaha
+- pelanggan masuk ke cafe dan menghitung menu yang dipunya sesuai harga pada lahan
+7. pembayaran beban operasional, pemain membayar pajak cafe sesuai keterangan
+8. pemain pertama berpindah ke pemain lain untuk memulai ronde berikutnya
+
+perhitungan akhir permainan setelah 4 ronde, atau bisa diakhiri di tengah permainan
+
+1. 1 KAP untuk setiap Rp. 10 uang
+2. pemain dengan kopi, teh, kue atau croissant terbanyak mendapat 1 KAP dan menerima pengahrgaan untuk masing2
+3. perhitungan KAP tertinggi adalah pemenanng
