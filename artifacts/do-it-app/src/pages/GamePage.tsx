@@ -479,7 +479,7 @@ export default function GamePage() {
     const myActedCSR=myPlayer.csrPaidThisRound;
     const myActedRevenue=room.actedThisPutaran.includes(myId+"_rev");
     const myActedLembur=room.actedThisPutaran.includes(myId+"_lembur");
-    const myActedCustomer=room.customerInputs.some(ci=>ci.playerId===myId);
+    const myActedCustomer=(room.customerInputs??[]).some(ci=>ci.playerId===myId);
     const myActedAction=room.actedThisPutaran.some(x=>x===myId);
     const myCafes=room.cafes.filter(c=>c.ownerId===myId);
     const bc=bcInfo(myPlayer.boardColor);
