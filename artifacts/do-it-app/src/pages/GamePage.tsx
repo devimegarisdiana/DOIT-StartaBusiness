@@ -854,7 +854,7 @@ export default function GamePage() {
                                 {priority.map((pColor,rank)=>{
                                   const pInfo=bcInfo(pColor);
                                   const pPlayer=room.players.find(p=>p.boardColor===pColor);
-                                  const lvl=pPlayer?.areaLevels.find(al=>al.area===areaInfo.value)?.level||1;
+                                  const lvl=pPlayer?.areaLevels?.find(al=>al.area===areaInfo.value)?.level??1;
                                   return (
                                     <div key={pColor} className="flex flex-col items-center px-1">
                                       <span className="text-[8px] text-gray-400">#{rank+1}</span>
@@ -870,9 +870,9 @@ export default function GamePage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {BOARD_COLORS.map(c=>{
-                          const cafesInArea=room.cafes.filter(ca=>ca.area===c.value);
+                          const cafesInArea=(room.cafes??[]).filter(ca=>ca.area===c.value);
                           const totalCust=cafesInArea.reduce((s,ca)=>s+ca.socialCustomers,0);
-                          const myLvl=myPlayer.areaLevels.find(al=>al.area===c.value)?.level||1;
+                          const myLvl=(myPlayer.areaLevels??[]).find(al=>al.area===c.value)?.level??1;
                           return (
                             <button key={c.value} onClick={()=>submitAction({action:"social",area:c.value,hutang:hutangMode})}
                               className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 active:scale-95"
@@ -894,8 +894,9 @@ export default function GamePage() {
                       <p className="text-xs text-gray-400 mb-4">Locus of Control: {myPlayer.kap.internalLocus}→{Math.min(7,myPlayer.kap.internalLocus+1)}. Pilih area yang memiliki lahan kosong.</p>
                       <div className="grid grid-cols-2 gap-2">
                         {BOARD_COLORS.map(c=>{
-                          const slotsInArea=room.cafes.filter(ca=>ca.area===c.value&&ca.slotIndex>1&&!ca.ownerId);
-                          const occupied=room.cafes.filter(ca=>ca.area===c.value&&ca.ownerId!==null).length;
+                          const allCafes=room.cafes??[];
+                          const slotsInArea=allCafes.filter(ca=>ca.area===c.value&&ca.slotIndex>1&&ca.ownerId===null);
+                          const occupied=allCafes.filter(ca=>ca.area===c.value&&ca.ownerId!==null).length;
                           const available=slotsInArea.length;
                           return (
                             <button key={c.value} disabled={available===0}

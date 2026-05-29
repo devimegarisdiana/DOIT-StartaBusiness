@@ -327,13 +327,18 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
 router.post("/rooms/:code/csr", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
-  if (room.phase !== "csr") { res.status(400).json({ error: "Bukan fase CSR" }); return; }
-  const { playerId, amount } = req.body as { playerId: string; amount: number | null };
+  if (room.phase !== "csr") {
+    const msg = room.phase === "cafe_setup"
+      ? "Selesaikan setup cafe semua pemain terlebih dahulu"
+      : "Bukan fase CSR";
+    res.status(400).json({ error: msg }); return;
+  }
+  const { playerId, amount } = req.body as { playerId: string; amount?: number | null };
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
   if (player.csrPaidThisRound) { res.status(400).json({ error: "Sudah memilih CSR" }); return; }
 
-  if (amount !== null) {
+  if (amount !== null && amount !== undefined) {
     const num = Number(amount);
     let kapGain = 0;
     if (num === 4) kapGain = 1;
