@@ -107,6 +107,7 @@ const SOCIAL_PRIORITY: Record<BoardColor, BoardColor[]> = {
 
 // ── KAP scoring ───────────────────────────────────────────────────────────
 
+// In-game KAP score — money/10 only counted at final (end_game)
 function calculateKAPScore(player: Player): number {
   const k = player.kap;
   let total = player.csrKAP || 0;
@@ -123,7 +124,6 @@ function calculateKAPScore(player: Player): number {
   if (k.toleransiAmbiguitas >= 2) total -= 1;
   if (k.toleransiAmbiguitas >= 4) total -= 2;
   if (k.toleransiAmbiguitas >= 7) total -= 3;
-  total += Math.floor(player.money / 10);
   return Math.max(0, total);
 }
 
