@@ -1252,13 +1252,33 @@ export default function GamePage() {
                     </button>
                   ))}
                 </div>
-                {debtAction==="repay"&&<p className="text-[10px] text-orange-500 font-bold mb-2">Bayar hutang: Rp.3 pinjam → bayar Rp.4 · Bersedia Risiko -1</p>}
-                <div className="flex items-center gap-2 mb-2"><span className="text-gray-500 text-sm">Rp</span><input type="number" value={debtAmount} onChange={e=>setDebtAmount(e.target.value)} className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-orange-400"/></div>
+                <div className="bg-orange-50 rounded-xl px-3 py-2 mb-2 text-[10px] text-orange-700 font-bold">
+                  1 tingkatan = {debtAction==="borrow"?"pinjam Rp.3, Bersedia Risiko +1":"bayar Rp.4, hutang -Rp.3, Bersedia Risiko -1"}
+                </div>
+                <label className="text-xs text-gray-500 mb-1 block">Jumlah tingkatan</label>
+                <div className="flex gap-1 mb-2">
+                  {[1,2,3].map(n=>(
+                    <button key={n} onClick={()=>setDebtAmount(String(n))}
+                      className="flex-1 py-2 rounded-xl font-black text-sm border-2"
+                      style={{ borderColor:debtAmount===String(n)?"#f97316":"#e5e7eb", background:debtAmount===String(n)?"#fff7ed":"#fff", color:debtAmount===String(n)?"#ea580c":"#666" }}>
+                      {n}×
+                    </button>
+                  ))}
+                  <input type="number" min={1} value={debtAmount} onChange={e=>setDebtAmount(e.target.value)} placeholder="n"
+                    className="w-14 border-2 border-gray-200 rounded-xl px-2 py-2 text-sm font-bold text-center outline-none focus:border-orange-400"/>
+                </div>
+                {debtAmount&&Number(debtAmount)>0&&(
+                  <div className="bg-white border border-orange-200 rounded-xl px-3 py-2 mb-2 text-xs font-bold text-orange-700">
+                    {debtAction==="borrow"
+                      ? `+Rp.${Number(debtAmount)*3} kas · hutang +Rp.${Number(debtAmount)*3} · Bersedia Risiko +${debtAmount}`
+                      : `Bayar Rp.${Number(debtAmount)*4} · hutang -Rp.${Number(debtAmount)*3} · Bersedia Risiko -${debtAmount}`}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button onClick={()=>setShowDebt(false)} className="flex-1 py-2 rounded-xl font-bold text-sm bg-gray-100 text-gray-600">Batal</button>
-                  <button onClick={async()=>{setLoading(true);setErr("");try{await post("/debt",{action:debtAction,amount:parseInt(debtAmount)||0});setShowDebt(false);setDebtAmount("");}catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}finally{setLoading(false);}}} disabled={loading||!debtAmount}
+                  <button onClick={async()=>{setLoading(true);setErr("");try{await post("/debt",{action:debtAction,amount:parseInt(debtAmount)||1});setShowDebt(false);setDebtAmount("");}catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}finally{setLoading(false);}}} disabled={loading||!debtAmount||Number(debtAmount)<1}
                     className="flex-1 py-2 rounded-xl font-black text-sm text-white disabled:opacity-50" style={{ background:debtAction==="borrow"?"#16a34a":"#dc2626" }}>
-                    {loading?"...":"OK"}
+                    {loading?"...":debtAction==="borrow"?`Pinjam Rp.${(parseInt(debtAmount)||0)*3}`:`Bayar Rp.${(parseInt(debtAmount)||0)*4}`}
                   </button>
                 </div>
               </div>

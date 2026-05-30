@@ -434,8 +434,10 @@ router.post("/rooms/:code/action", (req, res) => {
     const level = currentPlayer.kap.socialNetworking;
     const cost = level;
     if (hutang) {
-      currentPlayer.hutang += cost; currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + 1);
-      addTx(currentPlayer, `Hutang Aksi Social (${area} lv${level})`, cost, "pengeluaran", room.currentRonde);
+      const units = Math.ceil(cost / 3);
+      currentPlayer.hutang += units * 3;
+      currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + units);
+      addTx(currentPlayer, `Hutang Social (${area} lv${level}) ${units}×Rp.3`, units * 3, "pengeluaran", room.currentRonde);
     } else {
       if (currentPlayer.money < cost) { res.status(400).json({ error: "Uang tidak cukup" }); return; }
       currentPlayer.money -= cost;
@@ -478,7 +480,9 @@ router.post("/rooms/:code/action", (req, res) => {
       const price = buyoutP;
       if (!hutang && currentPlayer.money < price) { res.status(400).json({ error: `Uang tidak cukup (Rp.${price})` }); return; }
       if (hutang) {
-        currentPlayer.hutang += price; currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + 1);
+        const units = Math.ceil(price / 3);
+        currentPlayer.hutang += units * 3;
+        currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + units);
       } else { currentPlayer.money -= price; }
       emptySlot.ownerId = playerId;
       emptySlot.bidPrice = bPrice; emptySlot.buyoutPrice = buyoutP;
@@ -571,8 +575,10 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
     if (majority) {
       if (bidder.money < bid.openPrice) {
         const diff = bid.openPrice - bidder.money;
-        bidder.hutang += diff; bidder.kap.bersediaRisiko = Math.min(7, bidder.kap.bersediaRisiko + 1);
-        bidder.money = 0;
+        const units = Math.ceil(diff / 3);
+        bidder.hutang += units * 3;
+        bidder.kap.bersediaRisiko = Math.min(7, bidder.kap.bersediaRisiko + units);
+        bidder.money = Math.max(0, bidder.money + units * 3 - bid.openPrice);
       } else { bidder.money -= bid.openPrice; }
       cafe.ownerId = bid.bidderId; cafe.isSetup = true;
       addTx(bidder, `Open Bid berhasil: ${cafe.name}`, bid.openPrice, "pengeluaran", room.currentRonde);
@@ -684,18 +690,23 @@ router.post("/rooms/:code/debt", (req, res) => {
   const { playerId, action, amount } = req.body as { playerId: string; action: "borrow" | "repay"; amount: number };
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
-  const num = Number(amount);
+  // amount = jumlah tingkatan (1 tingkatan = Rp.3 pinjam / Rp.4 bayar)
+  const units = Math.max(1, Math.floor(Number(amount)));
   if (action === "borrow") {
-    player.money += num; player.hutang += num;
-    player.kap.bersediaRisiko = Math.min(7, player.kap.bersediaRisiko + 1);
-    addTx(player, "Pinjam ke Bank", num, "pemasukan", room.currentRonde);
+    const rp = units * 3;
+    player.money += rp; player.hutang += rp;
+    player.kap.bersediaRisiko = Math.min(7, player.kap.bersediaRisiko + units);
+    addTx(player, `Pinjam Bank ${units} tingkatan (+Rp.${rp})`, rp, "pemasukan", room.currentRonde);
   } else {
-    const repay = Math.ceil(num * (4/3));
-    if (player.money < repay) { res.status(400).json({ error: "Uang tidak cukup" }); return; }
-    player.money -= repay; player.hutang = Math.max(0, player.hutang - num);
-    // Paying debt reduces bersediaRisiko by 1
-    player.kap.bersediaRisiko = Math.max(0, player.kap.bersediaRisiko - 1);
-    addTx(player, "Bayar Hutang + Bunga 4/3", repay, "pengeluaran", room.currentRonde);
+    const maxUnits = Math.floor(player.hutang / 3);
+    const repayUnits = Math.min(units, maxUnits);
+    if (repayUnits < 1) { res.status(400).json({ error: "Tidak ada hutang yang bisa dibayar" }); return; }
+    const repayRp = repayUnits * 4;
+    if (player.money < repayRp) { res.status(400).json({ error: `Uang tidak cukup (butuh Rp.${repayRp})` }); return; }
+    player.money -= repayRp;
+    player.hutang = Math.max(0, player.hutang - repayUnits * 3);
+    player.kap.bersediaRisiko = Math.max(0, player.kap.bersediaRisiko - repayUnits);
+    addTx(player, `Bayar Hutang ${repayUnits} tingkatan (-Rp.${repayRp})`, repayRp, "pengeluaran", room.currentRonde);
   }
   res.json({ ok: true });
 });
