@@ -163,7 +163,7 @@ export default function GamePage() {
 
   // Action flow
   const [actionStep, setActionStep] = useState<ActionStep>(null);
-  const [hutangMode, setHutangMode] = useState(false);
+  const [pendingHutangAction, setPendingHutangAction] = useState<null|{body:Record<string,unknown>,cost:number,desc:string}>(null);
   // Expand specs form
   const [expandBidPrice, setExpandBidPrice] = useState("");
   const [expandMenuItems, setExpandMenuItems] = useState<MenuItem[]>([]);
@@ -269,10 +269,15 @@ export default function GamePage() {
     setLoading(true); setErr("");
     try {
       await post("/action",body);
-      setActionStep(null); setHutangMode(false);
+      setActionStep(null); setPendingHutangAction(null);
       setExpandBidPrice(""); setExpandMenuItems([]); setExpandSeats("2"); setExpandCafeName(""); setExpandOpenBid("");
     } catch(e:unknown){ setErr(e instanceof Error?e.message:"Error"); }
     finally { setLoading(false); }
+  }
+
+  function tryAction(body: Record<string,unknown>, cost: number, desc: string) {
+    if (!myPlayer || myPlayer.money >= cost) { submitAction(body); }
+    else { setPendingHutangAction({ body, cost, desc }); }
   }
 
   const myPlayer = room?.players.find(p=>p.id===myId);
@@ -544,7 +549,48 @@ export default function GamePage() {
     }
 
     return (
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ background:"#d6eeff" }}>
+      <div className="flex flex-col flex-1 overflow-hidden relative" style={{ background:"#d6eeff" }}>
+        {/* ── HUTANG CONFIRMATION MODAL ── */}
+        {pendingHutangAction&&(
+          <div className="absolute inset-0 z-50 flex items-end" style={{ background:"rgba(0,0,0,0.55)" }} onClick={()=>setPendingHutangAction(null)}>
+            <div className="w-full bg-white rounded-t-3xl p-5 shadow-2xl" onClick={e=>e.stopPropagation()}>
+              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4"/>
+              <div className="text-center mb-3">
+                <div className="text-3xl mb-1">⚠️</div>
+                <h3 className="font-black text-gray-800 text-lg">Uang Tidak Cukup</h3>
+                <p className="text-xs text-gray-500 mt-1">{pendingHutangAction.desc}</p>
+              </div>
+              <div className="bg-red-50 rounded-2xl p-3 mb-3">
+                <div className="flex justify-between text-sm mb-1"><span className="text-gray-500">Butuh</span><span className="font-black text-red-600">Rp.{pendingHutangAction.cost}</span></div>
+                <div className="flex justify-between text-sm mb-1"><span className="text-gray-500">Uangmu</span><span className="font-black text-gray-700">Rp.{myPlayer?.money||0}</span></div>
+                <div className="flex justify-between text-sm border-t border-red-100 pt-1 mt-1"><span className="text-gray-500">Kurang</span><span className="font-black text-red-500">Rp.{Math.max(0,pendingHutangAction.cost-(myPlayer?.money||0))}</span></div>
+              </div>
+              {(()=>{const units=Math.ceil(pendingHutangAction.cost/3);return(
+                <div className="bg-orange-50 rounded-2xl p-3 mb-4 border border-orange-200">
+                  <p className="text-xs font-black text-orange-700 mb-1">💳 Jika memilih hutang:</p>
+                  <p className="text-xs text-gray-600">• Pinjam <strong>{units} tingkatan × Rp.3 = +Rp.{units*3}</strong> kas</p>
+                  <p className="text-xs text-gray-600">• Bersedia Risiko <strong>+{units}</strong></p>
+                  <p className="text-xs text-gray-500">• Bayar nanti: Rp.{units*4} per tingkatan (total Rp.{units*4})</p>
+                </div>
+              )})()}
+              <div className="flex flex-col gap-2">
+                <button onClick={()=>submitAction({...pendingHutangAction.body,hutang:true})} disabled={loading}
+                  className="w-full py-3.5 rounded-2xl font-black text-sm text-white disabled:opacity-50 active:scale-95"
+                  style={{ background:"#ea580c" }}>
+                  {loading?"...":"💰 Ya, Gunakan Hutang"}
+                </button>
+                <button onClick={()=>{setPendingHutangAction(null);setActionStep(null);}}
+                  className="w-full py-3.5 rounded-2xl font-black text-sm bg-gray-100 text-gray-600 active:scale-95">
+                  ↩ Pilih Aksi Lain
+                </button>
+                <button onClick={()=>setPendingHutangAction(null)}
+                  className="w-full py-2 rounded-2xl text-xs font-bold text-gray-400 active:scale-95">
+                  Batal (lanjut pilih area)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Top Bar */}
         <div className="flex-shrink-0" style={{ background:"#1a3a6b" }}>
           <div className="flex items-center gap-2 px-3 pt-3 pb-1">
@@ -834,11 +880,7 @@ export default function GamePage() {
                   {actionStep?.action==="social"&&actionStep.step==="select_area"&&(
                     <div className="bg-white rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-1"><button onClick={()=>setActionStep(null)} className="text-gray-400 text-xl">‹</button><h3 className="font-black text-green-700 text-base">🤝 Social – Pilih Area</h3></div>
-                      <p className="text-xs text-gray-400 mb-2">Social Networking: {myPlayer.kap.socialNetworking}→{Math.min(7,myPlayer.kap.socialNetworking+1)} · Biaya: <strong>Rp.{myPlayer.kap.socialNetworking+1}</strong></p>
-                      <div className="flex items-center gap-2 mb-3 bg-amber-50 rounded-xl px-3 py-2">
-                        <input type="checkbox" id="hutang" checked={hutangMode} onChange={e=>setHutangMode(e.target.checked)} className="w-4 h-4 accent-orange-500"/>
-                        <label htmlFor="hutang" className="text-xs font-bold text-orange-600">Bayar via hutang (+Bersedia Risiko)</label>
-                      </div>
+                      <p className="text-xs text-gray-400 mb-2">Social Networking: {myPlayer.kap.socialNetworking}→{Math.min(7,myPlayer.kap.socialNetworking+1)} · Biaya: <strong>Rp.{myPlayer.kap.socialNetworking+1}</strong> · Uangmu: <strong className={myPlayer.money<myPlayer.kap.socialNetworking+1?"text-red-500":""}>Rp.{myPlayer.money}</strong></p>
                       {/* Social level info per area */}
                       <div className="mb-3 bg-gray-50 rounded-xl p-3">
                         <p className="text-[10px] font-bold text-gray-500 mb-2">Level Social Prioritas Area:</p>
@@ -872,7 +914,7 @@ export default function GamePage() {
                           const totalCust=cafesInArea.reduce((s,ca)=>s+ca.socialCustomers,0);
                           const myLvl=(myPlayer.areaLevels??[]).find(al=>al.area===c.value)?.level??1;
                           return (
-                            <button key={c.value} onClick={()=>submitAction({action:"social",area:c.value,hutang:hutangMode})}
+                            <button key={c.value} onClick={()=>tryAction({action:"social",area:c.value},myPlayer.kap.socialNetworking+1,`Social – ${c.label}`)}
                               className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 active:scale-95"
                               style={{ background:c.bg, borderColor:c.text }}>
                               <span className="text-2xl">{c.emoji}</span>
@@ -969,12 +1011,12 @@ export default function GamePage() {
                           <span className="text-2xl">🤝</span>
                           <div className="flex-1 text-left"><div className="font-black text-purple-700 text-sm">Open Bid</div><div className="text-xs text-gray-500">Tawar ke pemain lain, tunggu persetujuan (min Rp.{expandBidPrice}, max Rp.{(parseFloat(expandBidPrice)||0)*3})</div></div>
                         </button>
-                        <button onClick={()=>submitAction({action:"expand",bidType:"buyout",hutang:myPlayer.money<(parseFloat(expandBidPrice)||0)*3,expandSpecs:{area:actionStep.targetArea,bidPrice:parseFloat(expandBidPrice)||0,menuItems:expandMenuItems,seats:parseInt(expandSeats)||2,name:expandCafeName||undefined}})}
+                        <button onClick={()=>tryAction({action:"expand",bidType:"buyout",expandSpecs:{area:actionStep.targetArea,bidPrice:parseFloat(expandBidPrice)||0,menuItems:expandMenuItems,seats:parseInt(expandSeats)||2,name:expandCafeName||undefined}},(parseFloat(expandBidPrice)||0)*3,`Buy Out Cafe – ${bcInfo(actionStep.targetArea).label}`)}
                           disabled={loading}
                           className="w-full p-4 rounded-xl flex items-center gap-3 border-2 border-purple-300 active:scale-95 disabled:opacity-50"
                           style={{ background:"#9b59b6" }}>
                           <span className="text-2xl">💰</span>
-                          <div className="flex-1 text-left"><div className="font-black text-white text-sm">Buy Out Langsung – Rp.{(parseFloat(expandBidPrice)||0)*3}</div><div className="text-xs text-purple-200">{myPlayer.money<(parseFloat(expandBidPrice)||0)*3?"Uang kurang → via hutang":"Bayar sekarang"}</div></div>
+                          <div className="flex-1 text-left"><div className="font-black text-white text-sm">Buy Out Langsung – Rp.{(parseFloat(expandBidPrice)||0)*3}</div><div className="text-xs text-purple-200">{myPlayer.money<(parseFloat(expandBidPrice)||0)*3?"⚠️ Uang kurang":"Bayar sekarang"}</div></div>
                         </button>
                       </div>
                     </div>
