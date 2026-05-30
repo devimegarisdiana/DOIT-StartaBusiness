@@ -191,11 +191,19 @@ export default function GamePage() {
   const pollRoom = useCallback(async (code: string) => {
     try {
       const res = await fetch(`${API}/rooms/${code}`);
+      if (res.status === 404) {
+        // Room hilang (server restart atau kode salah) — kembali ke Home
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        setRoom(null);
+        setAppPhase("home");
+        setErr("Room tidak ditemukan. Server mungkin restart — buat room baru.");
+        return;
+      }
       if (!res.ok) return;
       const data: Room = await res.json();
       setRoom(data);
       if (data.status==="playing"||data.status==="finished") setAppPhase("game");
-    } catch {/* ignore */}
+    } catch {/* ignore network errors */}
   }, []);
 
   useEffect(() => {
