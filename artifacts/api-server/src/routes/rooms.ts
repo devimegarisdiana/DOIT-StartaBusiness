@@ -295,8 +295,8 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   if (room.phase !== "cafe_setup") { res.status(400).json({ error: "Bukan fase setup cafe" }); return; }
-  const { playerId, bidPrice, menuItems, seats, name } = req.body as {
-    playerId: string; bidPrice: number; menuItems: MenuItem[]; seats: number; name?: string;
+  const { playerId, menuItems, seats, name } = req.body as {
+    playerId: string; menuItems: MenuItem[]; seats: number; name?: string;
   };
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
@@ -306,8 +306,8 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
   if (!cafe) { res.status(404).json({ error: "Cafe tidak ditemukan" }); return; }
 
   cafe.name = name?.trim() || `Kafe ${player.name}`;
-  cafe.bidPrice = Number(bidPrice) || 1;
-  cafe.buyoutPrice = cafe.bidPrice * 3;
+  cafe.bidPrice = 0;
+  cafe.buyoutPrice = 0;
   cafe.menuItems = (menuItems || []).map(m => ({
     type: m.type, count: m.count || 1, price: m.price || 1,
   }));

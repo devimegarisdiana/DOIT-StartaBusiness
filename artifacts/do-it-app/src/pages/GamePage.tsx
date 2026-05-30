@@ -648,15 +648,6 @@ export default function GamePage() {
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-600 mb-1 block">Harga Bid (dari papan)</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-500 text-sm">Rp</span>
-                      <input type="number" value={setupBidPrice} onChange={e=>setSetupBidPrice(e.target.value)} placeholder="Harga bid cafe"
-                        className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
-                    </div>
-                    {setupBidPrice&&<p className="text-xs text-purple-600 mt-1 font-bold">Buy Out otomatis: Rp.{(parseFloat(setupBidPrice)||0)*3}</p>}
-                  </div>
-                  <div>
                     <label className="text-xs font-bold text-gray-600 mb-1 block">Jumlah Kursi</label>
                     <input type="number" value={setupSeats} onChange={e=>setSetupSeats(e.target.value)} min={1} placeholder="2"
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
@@ -666,12 +657,11 @@ export default function GamePage() {
                     <MenuEditor items={setupMenuItems} onChange={setSetupMenuItems}/>
                   </div>
                   <button onClick={async()=>{
-                    if(!setupBidPrice){setErr("Masukkan harga bid");return;}
                     setLoading(true);setErr("");
-                    try{await post("/cafe-setup",{bidPrice:parseFloat(setupBidPrice),menuItems:setupMenuItems,seats:parseInt(setupSeats)||2,name:setupCafeName||undefined});}
+                    try{await post("/cafe-setup",{menuItems:setupMenuItems,seats:parseInt(setupSeats)||2,name:setupCafeName||undefined});}
                     catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
                     finally{setLoading(false);}
-                  }} disabled={loading||!setupBidPrice}
+                  }} disabled={loading}
                     className="w-full py-3.5 rounded-xl font-black text-sm text-white disabled:opacity-50 active:scale-95"
                     style={{ background:"linear-gradient(135deg,#28a745,#20c058)" }}>
                     {loading?"Menyimpan...":"✅ Konfirmasi Setup Cafe"}
