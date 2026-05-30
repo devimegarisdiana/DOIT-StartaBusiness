@@ -493,17 +493,30 @@ router.post("/rooms/:code/action", (req, res) => {
       const oPrice = Number(bidPrice) || bPrice;
       if (oPrice < bPrice) { res.status(400).json({ error: `Min bid: Rp.${bPrice}` }); return; }
       if (oPrice > buyoutP) { res.status(400).json({ error: `Max bid: Rp.${buyoutP}` }); return; }
-      // Store specs in emptySlot (provisional, finalized if bid accepted)
       emptySlot.bidPrice = bPrice; emptySlot.buyoutPrice = buyoutP;
       emptySlot.menuItems = expandSpecs.menuItems || [];
       emptySlot.seats = expandSpecs.seats || 2;
       emptySlot.name = expandSpecs.name || `Kafe ${targetArea} #${emptySlot.slotIndex}`;
-      room.pendingBid = {
-        cafeId: emptySlot.id, bidderId: playerId, cafeName: emptySlot.name,
-        openPrice: oPrice, responses: [], status: "pending",
-      };
-      currentPlayer.lastAction = action;
-      res.json({ ok: true, pendingBid: true }); return;
+
+      const nonBidders = room.players.filter(p => p.id !== playerId);
+      if (nonBidders.length === 0) {
+        // Solo / tidak ada pemain lain → auto-accept langsung
+        if (currentPlayer.money < oPrice) {
+          const diff = oPrice - currentPlayer.money;
+          currentPlayer.hutang += diff; currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + 1);
+          currentPlayer.money = 0;
+        } else { currentPlayer.money -= oPrice; }
+        emptySlot.ownerId = playerId; emptySlot.isSetup = true;
+        addTx(currentPlayer, `Open Bid berhasil: ${emptySlot.name}`, oPrice, "pengeluaran", room.currentRonde);
+        // fall through to normal turn advance + internalLocus below
+      } else {
+        room.pendingBid = {
+          cafeId: emptySlot.id, bidderId: playerId, cafeName: emptySlot.name,
+          openPrice: oPrice, responses: [], status: "pending",
+        };
+        currentPlayer.lastAction = action;
+        res.json({ ok: true, pendingBid: true }); return;
+      }
     }
 
     currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
@@ -550,11 +563,12 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
 
   if (allResponded) {
     const bid = room.pendingBid!;
-    const allAccepted = bid.responses.every(r => r.accepted);
+    const acceptCount = bid.responses.filter(r => r.accepted).length;
+    const majority = nonBidders.length === 0 || acceptCount > nonBidders.length / 2;
     const cafe = room.cafes.find(c => c.id === bid.cafeId)!;
     const bidder = room.players.find(p => p.id === bid.bidderId)!;
 
-    if (allAccepted) {
+    if (majority) {
       if (bidder.money < bid.openPrice) {
         const diff = bid.openPrice - bidder.money;
         bidder.hutang += diff; bidder.kap.bersediaRisiko = Math.min(7, bidder.kap.bersediaRisiko + 1);
