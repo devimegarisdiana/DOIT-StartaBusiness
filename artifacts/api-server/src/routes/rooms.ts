@@ -748,4 +748,35 @@ router.post("/rooms/:code/finish-early", (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/rooms/:code/facilitator-advance — force move to next phase
+const PHASE_ORDER: GamePhase[] = ["cafe_setup","csr","operational","lembur_offer","customer_input","revenue","end_game_sell","finished"];
+router.post("/rooms/:code/facilitator-advance", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId } = req.body as { playerId: string };
+  if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
+  if (room.phase === "finished") { res.status(400).json({ error: "Game sudah selesai" }); return; }
+  const idx = PHASE_ORDER.indexOf(room.phase);
+  const next = PHASE_ORDER[idx + 1] ?? "finished";
+  room.phase = next;
+  room.actedThisPutaran = [];
+  if (next === "finished") {
+    room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
+    room.status = "finished";
+  }
+  res.json({ ok: true, newPhase: next });
+});
+
+// POST /api/rooms/:code/facilitator-reset-turn — reset putaran state
+router.post("/rooms/:code/facilitator-reset-turn", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId } = req.body as { playerId: string };
+  if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
+  room.actedThisPutaran = [];
+  room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
+  room.players.forEach(p => { p.lastAction = null; });
+  res.json({ ok: true });
+});
+
 export default router;

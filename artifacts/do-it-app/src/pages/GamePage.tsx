@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import PlayerCard from "../components/PlayerCard";
+import FacilitatorPanel from "../components/FacilitatorPanel";
 
 const API = "/api";
 
@@ -164,6 +166,7 @@ export default function GamePage() {
   // Action flow
   const [actionStep, setActionStep] = useState<ActionStep>(null);
   const [pendingHutangAction, setPendingHutangAction] = useState<null|{body:Record<string,unknown>,cost:number,desc:string}>(null);
+  const [showFacilitatorPanel, setShowFacilitatorPanel] = useState(false);
   // Expand specs form
   const [expandBidPrice, setExpandBidPrice] = useState("");
   const [expandMenuItems, setExpandMenuItems] = useState<MenuItem[]>([]);
@@ -500,47 +503,44 @@ export default function GamePage() {
     const isBidder=pendingBid?.bidderId===myId;
     const myBidResponse=pendingBid?.responses.find(r=>r.playerId===myId);
     const PHASE_LABELS: Record<string,string> = { cafe_setup:"Setup Cafe",csr:"CSR",operational:"Aksi",lembur_offer:"Lembur",customer_input:"Pelanggan",revenue:"Pendapatan",end_game_sell:"Jual Cafe",finished:"Selesai" };
+    const isHost=room.hostId===myId;
 
     // ── FINISHED ──
     if (room.status==="finished") {
       const sorted=[...room.players].sort((a,b)=>(b.finalKAP??b.kapScore)-(a.finalKAP??a.kapScore));
+      // Save session to localStorage for Leaderboard history
+      const institution=localStorage.getItem("doitInstitution")||"";
+      const rawSessions=localStorage.getItem("doitSessions");
+      const sessions: {code:string;date:string;players:typeof sorted;institution?:string}[]=rawSessions?JSON.parse(rawSessions):[];
+      if (!sessions.find(s=>s.code===room.code)) {
+        sessions.push({ code:room.code, date:new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"short",year:"numeric"}), players:sorted as never, institution });
+        if (sessions.length>10) sessions.shift();
+        localStorage.setItem("doitSessions",JSON.stringify(sessions));
+      }
       return (
         <div className="flex flex-col flex-1 overflow-y-auto" style={{ background:"#d6eeff" }}>
-          <div className="px-4 pt-6 pb-4 text-center" style={{ background:"#1a3a6b" }}>
+          <div className="px-4 pt-6 pb-5 text-center" style={{ background:"linear-gradient(135deg,#1a3a6b,#2478d4)" }}>
             <div className="text-5xl mb-2">🏆</div>
             <h1 className="text-white font-black text-xl">Permainan Selesai!</h1>
-            <p className="text-blue-300 text-xs mt-1">Room: {room.code}</p>
+            <p className="text-blue-300 text-xs mt-1">Room: {room.code}{institution?` · ${institution}`:""}</p>
           </div>
           <div className="px-4 py-4 flex flex-col gap-3">
-            {sorted.map((p,i)=>{
-              const pbc=bcInfo(p.boardColor);
-              const moneyKAP=Math.floor(p.money/10);
-              const debtPenalty=p.hutang>0?p.kap.bersediaRisiko:0;
-              return (
-                <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm" style={{ border:i===0?"2px solid #f59e0b":"none" }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">{["🥇","🥈","🥉","4️⃣"][i]}</span>
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-lg" style={colorStyle(p.boardColor)}>{pbc.emoji}</div>
-                    <div className="flex-1">
-                      <div className="font-black text-gray-800 text-sm">{p.name}{p.id===myId?" (Kamu)":""}</div>
-                      <div className="text-xs" style={{ color:pbc.text }}>{pbc.label}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-black text-2xl" style={{ color:"#1a3a6b" }}>{p.finalKAP??p.kapScore}</div>
-                      <div className="text-[10px] text-gray-400">KAP</div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-2.5 text-[11px] text-gray-600 flex flex-col gap-0.5">
-                    <div className="flex justify-between"><span>CSR KAP</span><span className="font-bold">+{p.csrKAP||0}</span></div>
-                    <div className="flex justify-between"><span>Uang → KAP ({formatRp(p.money)} ÷ 10)</span><span className="font-bold">+{moneyKAP}</span></div>
-                    {debtPenalty>0&&<div className="flex justify-between text-red-500"><span>Penalty Hutang (Bersedia Risiko lv{p.kap.bersediaRisiko})</span><span className="font-bold">-{debtPenalty}</span></div>}
-                    {p.hutang>0&&<div className="flex justify-between text-red-500"><span>Sisa hutang</span><span className="font-bold">{formatRp(p.hutang)}</span></div>}
-                  </div>
-                </div>
-              );
-            })}
-            <button onClick={()=>navigate("/")} className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg active:scale-95"
-              style={{ background:"linear-gradient(135deg,#1a3a6b,#2478d4)" }}>
+            {sorted.map((p,i)=>(
+              <PlayerCard key={p.id} player={p as never} rank={i} myId={myId} institution={institution||undefined}/>
+            ))}
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button onClick={()=>navigate(`/leaderboard?room=${room.code}`)}
+                className="py-3.5 rounded-2xl font-black text-sm text-white active:scale-95 shadow"
+                style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)" }}>
+                🏆 Leaderboard
+              </button>
+              <button onClick={()=>navigate(`/admin?room=${room.code}`)}
+                className="py-3.5 rounded-2xl font-black text-sm text-white active:scale-95 shadow"
+                style={{ background:"linear-gradient(135deg,#1a3a6b,#2478d4)" }}>
+                📊 Dashboard
+              </button>
+            </div>
+            <button onClick={()=>navigate("/")} className="w-full py-3.5 rounded-2xl font-black text-sm bg-white text-gray-600 border border-gray-200 active:scale-95">
               🏠 Kembali ke Beranda
             </button>
           </div>
@@ -551,6 +551,9 @@ export default function GamePage() {
     return (
       <div className="flex flex-col flex-1 overflow-hidden relative" style={{ background:"#d6eeff" }}>
         {/* ── HUTANG CONFIRMATION MODAL ── */}
+        {showFacilitatorPanel&&myId&&room&&(
+          <FacilitatorPanel roomCode={room.code} myId={myId} onClose={()=>setShowFacilitatorPanel(false)}/>
+        )}
         {pendingHutangAction&&(
           <div className="absolute inset-0 z-50 flex items-end" style={{ background:"rgba(0,0,0,0.55)" }} onClick={()=>setPendingHutangAction(null)}>
             <div className="w-full bg-white rounded-t-3xl p-5 shadow-2xl" onClick={e=>e.stopPropagation()}>
@@ -606,7 +609,7 @@ export default function GamePage() {
               <div className="font-black text-sm text-white">{formatRp(myPlayer.money)}</div>
               <div className="text-[10px] text-blue-300">KAP: <span className="text-yellow-300 font-black">{myPlayer.kapScore}</span></div>
             </div>
-            {isHost&&<button onClick={()=>{if(confirm("Akhiri permainan sekarang?"))post("/finish-early",{})}} className="ml-1 text-red-300 text-[10px] font-bold border border-red-400 px-1.5 py-0.5 rounded-lg">Akhiri</button>}
+            {isHost&&<button onClick={()=>setShowFacilitatorPanel(true)} className="ml-1 w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{background:"rgba(255,255,255,0.15)"}}>🎛</button>}
           </div>
           <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
             {room.players.map(p=>{
