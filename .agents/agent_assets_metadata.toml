@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "H5I-Rso_DtlCGCu_2NBCm"
+uri = "file://do-it-app.zip"
+type = "unspecified"
+title = "DO IT: Start a Business — Companion App"
