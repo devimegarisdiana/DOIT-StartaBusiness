@@ -30,69 +30,45 @@ export default function Home() {
 
       {/* ── HERO ── */}
       <div style={{
-        background: "linear-gradient(160deg, #1a4fa0 0%, #2478d4 50%, #4a9fe8 100%)",
-        borderRadius: "0 0 36px 36px",
-        padding: "20px 16px 28px",
-        position: "relative", overflow: "hidden",
+        position: "relative",
+        borderRadius: "0 0 32px 32px",
+        overflow: "hidden",
+        height: 220,
       }}>
-        {/* Decorative circles */}
-        <div style={{ position:"absolute", top:-40, right:-30, width:160, height:160, borderRadius:"50%", background:"rgba(255,255,255,0.06)" }}/>
-        <div style={{ position:"absolute", top:20, right:20, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.06)" }}/>
-        <div style={{ position:"absolute", bottom:-20, left:-20, width:120, height:120, borderRadius:"50%", background:"rgba(255,255,255,0.05)" }}/>
-
-        {/* Top bar */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, position:"relative", zIndex:1 }}>
-          <div style={{ background:"rgba(255,255,255,0.15)", borderRadius:10, padding:"4px 12px", backdropFilter:"blur(10px)", border:"1px solid rgba(255,255,255,0.2)" }}>
-            <span style={{ color:"#fff", fontSize:9, fontWeight:800, letterSpacing:2 }}>POLINEMA × COMIC CAFE</span>
-          </div>
-          <div style={{ background:"rgba(255,255,255,0.15)", borderRadius:10, padding:"4px 12px", backdropFilter:"blur(10px)", border:"1px solid rgba(255,255,255,0.2)" }}>
-            <span style={{ color:"#fff", fontSize:9, fontWeight:800, letterSpacing:1.5 }}>v2.0 ✨</span>
-          </div>
-        </div>
-
-        {/* Title */}
-        <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:12, position:"relative", zIndex:1 }}>
-          <div style={{
-            width:72, height:72, borderRadius:22, background:"rgba(255,255,255,0.15)",
-            border:"2px solid rgba(255,255,255,0.3)", display:"flex", alignItems:"center",
-            justifyContent:"center", fontSize:38, flexShrink:0, backdropFilter:"blur(10px)",
-          }}>🎂</div>
-          <div>
-            <h1 style={{
-              fontFamily:"'Nunito','Inter',sans-serif", fontWeight:900,
-              fontSize:52, lineHeight:0.95, letterSpacing:-3, color:"#fff",
-              margin:0, textShadow:"0 4px 20px rgba(0,0,0,0.2)",
-            }}>DO IT</h1>
-            <p style={{ color:"#fde68a", fontWeight:900, fontSize:12, letterSpacing:4, margin:"4px 0 0", textTransform:"uppercase" }}>
-              START A BUSINESS
-            </p>
-          </div>
-        </div>
-
-        <p style={{ color:"rgba(255,255,255,0.75)", fontSize:12, lineHeight:1.6, margin:"0 0 16px", position:"relative", zIndex:1, maxWidth:300 }}>
-          Media pembelajaran kewirausahaan berbasis simulasi mengelola usaha cafe ☕
-        </p>
-
-        {/* Stats row */}
-        <div style={{ display:"flex", gap:8, position:"relative", zIndex:1 }}>
-          {[{val:"4",label:"Pemain",emoji:"👥"},{val:"4",label:"Ronde",emoji:"🔄"},{val:"5",label:"Aspek KAP",emoji:"⭐"}].map(s=>(
-            <div key={s.label} style={{
-              flex:1, background:"rgba(255,255,255,0.15)", borderRadius:14, padding:"10px 6px",
-              textAlign:"center", backdropFilter:"blur(10px)", border:"1px solid rgba(255,255,255,0.2)",
-            }}>
-              <div style={{ fontSize:16, marginBottom:2 }}>{s.emoji}</div>
-              <div style={{ color:"#fff", fontWeight:900, fontSize:18, lineHeight:1 }}>{s.val}</div>
-              <div style={{ color:"rgba(255,255,255,0.65)", fontSize:9, marginTop:2, fontWeight:600 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
+        {/* Hero image — scaled 200% wide so bottom info-bar is clipped out */}
+        <img
+          src="/hero-bg.png"
+          alt="DO IT hero"
+          style={{
+            position: "absolute", top: 0, left: "-50%",
+            width: "200%", height: "auto",
+            display: "block",
+          }}
+        />
+        {/* Gradient fade at bottom so cards blend in smoothly */}
+        <div style={{
+          position:"absolute", bottom:0, left:0, right:0, height:80,
+          background:"linear-gradient(to bottom, transparent, #e8f4ff)",
+        }}/>
         {/* Institution badge */}
-        <div style={{ marginTop:14, display:"inline-flex", alignItems:"center", gap:6, position:"relative", zIndex:1,
-          background:"rgba(255,255,255,0.15)", borderRadius:20, padding:"6px 14px",
-          border:"1px solid rgba(255,255,255,0.25)", backdropFilter:"blur(10px)" }}>
+        <div style={{
+          position:"absolute", bottom:14, left:16,
+          display:"inline-flex", alignItems:"center", gap:6,
+          background:"rgba(255,255,255,0.85)", borderRadius:20, padding:"5px 14px",
+          border:"1.5px solid rgba(36,120,212,0.2)", backdropFilter:"blur(10px)",
+          boxShadow:"0 2px 12px rgba(0,0,0,0.1)",
+        }}>
           <span style={{ fontSize:12 }}>🏫</span>
-          <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>{institution}</span>
+          <span style={{ color:"#1a3a6b", fontSize:11, fontWeight:800 }}>{institution}</span>
+        </div>
+        {/* v2.0 badge */}
+        <div style={{
+          position:"absolute", bottom:14, right:16,
+          background:"rgba(255,255,255,0.85)", borderRadius:20, padding:"5px 12px",
+          border:"1.5px solid rgba(36,120,212,0.2)", backdropFilter:"blur(10px)",
+          boxShadow:"0 2px 12px rgba(0,0,0,0.1)",
+        }}>
+          <span style={{ color:"#2478d4", fontSize:9, fontWeight:800, letterSpacing:1.5 }}>v2.0 ✨ PREMIUM</span>
         </div>
       </div>
 
