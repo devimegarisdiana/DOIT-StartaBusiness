@@ -73,7 +73,7 @@ export default function SplashScreen({ onDone }: Props) {
       <div style={{ position:"absolute", bottom:28, textAlign:"center",
         opacity: visible?0.4:0, transition:"opacity 0.6s ease 0.6s" }}>
         <span style={{ color:"#fff", fontSize:9, letterSpacing:2.5, textTransform:"uppercase" }}>
-          ASA PRODUCTION · BOARD GAME EDUKASI
+          POLINEMA × COMIC CAFE · BOARD GAME EDUKASI
         </span>
       </div>
     </div>

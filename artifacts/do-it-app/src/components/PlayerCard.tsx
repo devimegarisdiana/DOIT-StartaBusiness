@@ -83,7 +83,7 @@ export default function PlayerCard({player,rank,myId,institution}:Props) {
 
       <div style={{textAlign:"center",paddingBottom:10,borderTop:"1px solid #f1f5f9",paddingTop:8}}>
         <span style={{fontSize:9,letterSpacing:2,color:"#cbd5e1",textTransform:"uppercase"}}>
-          DO IT · ASA PRODUCTION{institution?` · ${institution}`:""}
+          DO IT · POLINEMA × Comic Cafe{institution?` · ${institution}`:""}
         </span>
       </div>
     </div>

@@ -63,7 +63,7 @@ export default function Home() {
               background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.3)",
               borderRadius:8,padding:"3px 10px",
             }}>
-              <span style={{color:"#fbbf24",fontSize:9,fontWeight:800,letterSpacing:2}}>ASA PRODUCTION</span>
+              <span style={{color:"#fbbf24",fontSize:9,fontWeight:800,letterSpacing:2}}>POLINEMA × COMIC CAFE</span>
             </div>
           </div>
           <div style={{
@@ -211,7 +211,7 @@ export default function Home() {
         {/* Footer */}
         <div style={{textAlign:"center",paddingTop:8}}>
           <span style={{fontSize:9,color:"rgba(255,255,255,0.12)",letterSpacing:2.5,textTransform:"uppercase"}}>
-            ASA PRODUCTION © 2025
+            POLINEMA × COMIC CAFE © 2025
           </span>
         </div>
       </div>

@@ -104,9 +104,9 @@ export default function Pengaturan() {
         <Section title="ℹ️ Tentang Aplikasi" desc="">
           {[
             { icon: "🎮", label: "Versi Aplikasi",    value: "2.0 Premium" },
-            { icon: "🏢", label: "Dikembangkan oleh", value: "ASA PRODUCTION" },
+            { icon: "🏢", label: "Dikembangkan oleh", value: "POLINEMA × Comic Cafe" },
             { icon: "📚", label: "Untuk",              value: "Edukasi Kewirausahaan" },
-            { icon: "💎", label: "UI Pack",            value: "Software House Edition" },
+            { icon: "💎", label: "UI Pack",            value: "ASA Production" },
           ].map((item, i) => (
             <div key={i} style={{
               display: "flex", alignItems: "center", gap: 12,
@@ -124,7 +124,7 @@ export default function Pengaturan() {
       {/* Footer */}
       <div style={{ textAlign: "center", padding: "8px 16px 20px" }}>
         <span style={{ fontSize: 9, color: "rgba(255,255,255,0.1)", letterSpacing: 2.5, textTransform: "uppercase" }}>
-          ASA PRODUCTION © 2025 · UI SOFTWARE HOUSE PACK
+          POLINEMA × COMIC CAFE © 2025 · UI PACK BY ASA PRODUCTION
         </span>
       </div>
     </div>
