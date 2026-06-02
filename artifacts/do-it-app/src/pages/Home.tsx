@@ -29,44 +29,34 @@ export default function Home() {
     <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#e8f4ff" }}>
 
       {/* ── HERO ── */}
-      <div style={{
-        position: "relative",
-        borderRadius: "0 0 32px 32px",
-        overflow: "hidden",
-        height: 220,
-      }}>
-        {/* Hero image — scaled 200% wide so bottom info-bar is clipped out */}
+      <div style={{ position: "relative", borderRadius: "0 0 28px 28px", overflow: "hidden" }}>
         <img
           src="/hero-bg.png"
           alt="DO IT hero"
-          style={{
-            position: "absolute", top: 0, left: "-50%",
-            width: "200%", height: "auto",
-            display: "block",
-          }}
+          style={{ width: "100%", display: "block" }}
         />
-        {/* Gradient fade at bottom so cards blend in smoothly */}
+        {/* Gradient fade at bottom */}
         <div style={{
-          position:"absolute", bottom:0, left:0, right:0, height:80,
+          position:"absolute", bottom:0, left:0, right:0, height:56,
           background:"linear-gradient(to bottom, transparent, #e8f4ff)",
         }}/>
         {/* Institution badge */}
         <div style={{
-          position:"absolute", bottom:14, left:16,
-          display:"inline-flex", alignItems:"center", gap:6,
-          background:"rgba(255,255,255,0.85)", borderRadius:20, padding:"5px 14px",
+          position:"absolute", bottom:10, left:12,
+          display:"inline-flex", alignItems:"center", gap:5,
+          background:"rgba(255,255,255,0.88)", borderRadius:18, padding:"4px 12px",
           border:"1.5px solid rgba(36,120,212,0.2)", backdropFilter:"blur(10px)",
-          boxShadow:"0 2px 12px rgba(0,0,0,0.1)",
+          boxShadow:"0 2px 10px rgba(0,0,0,0.1)",
         }}>
-          <span style={{ fontSize:12 }}>🏫</span>
-          <span style={{ color:"#1a3a6b", fontSize:11, fontWeight:800 }}>{institution}</span>
+          <span style={{ fontSize:11 }}>🏫</span>
+          <span style={{ color:"#1a3a6b", fontSize:10, fontWeight:800 }}>{institution}</span>
         </div>
         {/* v2.0 badge */}
         <div style={{
-          position:"absolute", bottom:14, right:16,
-          background:"rgba(255,255,255,0.85)", borderRadius:20, padding:"5px 12px",
+          position:"absolute", bottom:10, right:12,
+          background:"rgba(255,255,255,0.88)", borderRadius:18, padding:"4px 11px",
           border:"1.5px solid rgba(36,120,212,0.2)", backdropFilter:"blur(10px)",
-          boxShadow:"0 2px 12px rgba(0,0,0,0.1)",
+          boxShadow:"0 2px 10px rgba(0,0,0,0.1)",
         }}>
           <span style={{ color:"#2478d4", fontSize:9, fontWeight:800, letterSpacing:1.5 }}>v2.0 ✨ PREMIUM</span>
         </div>
