@@ -4,20 +4,20 @@ const CARDS = [
   {
     num: "01", icon: "📘", title: "Panduan Permainan",
     desc: "Baca panduan lengkap aturan, komponen, dan cara bermain DO IT.",
-    color: "#2478d4", light: "#eff6ff", border: "#bfdbfe",
-    badge: "PDF Guide", action: "/panduan", external: false,
+    color: "#2563eb", grad: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+    badge: "PDF Guide", action: "/panduan",
   },
   {
     num: "02", icon: "🎮", title: "Mulai Game",
     desc: "Buat atau gabung room, catat transaksi, dan hitung KAP secara real-time.",
-    color: "#16a34a", light: "#f0fdf4", border: "#bbf7d0",
-    badge: "Multiplayer", action: "/game", external: false,
+    color: "#059669", grad: "linear-gradient(135deg,#047857,#10b981)",
+    badge: "Multiplayer", action: "/game",
   },
   {
     num: "03", icon: "🎯", title: "Intensi Kewirausahaan",
     desc: "Isi kuesioner untuk mengukur KAP sebelum dan sesudah bermain.",
-    color: "#d97706", light: "#fffbeb", border: "#fde68a",
-    badge: "Kuesioner", action: "/kuesioner", external: false,
+    color: "#d97706", grad: "linear-gradient(135deg,#b45309,#f59e0b)",
+    badge: "Kuesioner", action: "/kuesioner",
   },
 ];
 
@@ -26,136 +26,172 @@ export default function Home() {
   const institution = localStorage.getItem("doitInstitution") || "POLINEMA";
 
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#e8f4ff" }}>
+    <div className="flex flex-col flex-1 overflow-y-auto" style={{
+      background: "linear-gradient(175deg, #d6ebff 0%, #e8f4ff 40%, #f0f8ff 100%)",
+    }}>
 
       {/* ── HERO ── */}
-      <div style={{ position: "relative", borderRadius: "0 0 28px 28px", overflow: "hidden" }}>
-        <img
-          src="/hero-bg.png"
-          alt="DO IT hero"
-          style={{ width: "100%", display: "block" }}
-        />
-        {/* Gradient fade at bottom */}
+      <div style={{ position:"relative", overflow:"hidden" }}>
+        <img src="/hero-bg.png" alt="DO IT hero" style={{ width:"100%", display:"block" }}/>
+
+        {/* Bottom gradient fade */}
         <div style={{
-          position:"absolute", bottom:0, left:0, right:0, height:56,
+          position:"absolute", bottom:0, left:0, right:0, height:64,
           background:"linear-gradient(to bottom, transparent, #e8f4ff)",
         }}/>
-        {/* Institution badge */}
+
+        {/* Institution pill */}
         <div style={{
-          position:"absolute", bottom:10, left:12,
+          position:"absolute", bottom:12, left:14,
           display:"inline-flex", alignItems:"center", gap:5,
-          background:"rgba(255,255,255,0.88)", borderRadius:18, padding:"4px 12px",
-          border:"1.5px solid rgba(36,120,212,0.2)", backdropFilter:"blur(10px)",
-          boxShadow:"0 2px 10px rgba(0,0,0,0.1)",
+          background:"rgba(255,255,255,0.92)", borderRadius:20, padding:"5px 13px",
+          boxShadow:"0 4px 16px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,1)",
+          border:"1px solid rgba(255,255,255,0.9)",
+          backdropFilter:"blur(12px)",
         }}>
           <span style={{ fontSize:11 }}>🏫</span>
-          <span style={{ color:"#1a3a6b", fontSize:10, fontWeight:800 }}>{institution}</span>
+          <span style={{ color:"#0f2a5c", fontSize:10, fontWeight:800, letterSpacing:0.3 }}>{institution}</span>
         </div>
-        {/* v2.0 badge */}
+
+        {/* Premium badge */}
         <div style={{
-          position:"absolute", bottom:10, right:12,
-          background:"rgba(255,255,255,0.88)", borderRadius:18, padding:"4px 11px",
-          border:"1.5px solid rgba(36,120,212,0.2)", backdropFilter:"blur(10px)",
-          boxShadow:"0 2px 10px rgba(0,0,0,0.1)",
+          position:"absolute", bottom:12, right:14,
+          background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",
+          borderRadius:20, padding:"5px 12px",
+          boxShadow:"0 4px 14px rgba(29,78,216,0.45)",
+          border:"1px solid rgba(99,160,255,0.3)",
         }}>
-          <span style={{ color:"#2478d4", fontSize:9, fontWeight:800, letterSpacing:1.5 }}>v2.0 ✨ PREMIUM</span>
+          <span style={{ color:"#fbbf24", fontSize:9, fontWeight:900, letterSpacing:1.8 }}>✦ v2.0 PREMIUM</span>
         </div>
       </div>
 
-      {/* ── ACTION CARDS ── */}
-      <div style={{ padding:"20px 16px 8px", display:"flex", flexDirection:"column", gap:12 }}>
+      {/* ── MAIN CARDS ── */}
+      <div style={{ padding:"18px 16px 6px" }}>
 
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
-          <span style={{ color:"#64748b", fontSize:11, fontWeight:700, letterSpacing:1.5 }}>FITUR UTAMA</span>
-          <span style={{ fontSize:16 }}>🚀</span>
+        <div style={{
+          display:"flex", alignItems:"center", gap:8, marginBottom:14,
+          paddingLeft:2,
+        }}>
+          <div style={{ width:3, height:16, borderRadius:2, background:"linear-gradient(180deg,#f59e0b,#fbbf24)" }}/>
+          <span style={{ color:"#0f2a5c", fontSize:11, fontWeight:900, letterSpacing:2 }}>FITUR UTAMA</span>
         </div>
 
-        {CARDS.map(card => (
-          <button key={card.num}
-            onClick={() => { if (!card.action) return; if (card.external) window.open(card.action, "_blank"); else navigate(card.action); }}
-            style={{
-              width:"100%", textAlign:"left", background:"#fff",
-              border:`1.5px solid ${card.border}`,
-              borderRadius:20, padding:16, cursor:"pointer",
-              boxShadow:"0 2px 12px rgba(36,120,212,0.08)",
-              transition:"all 0.18s", position:"relative", overflow:"hidden",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform="translateY(-1px)"; e.currentTarget.style.boxShadow=`0 6px 20px rgba(36,120,212,0.14)`; }}
-            onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 2px 12px rgba(36,120,212,0.08)"; }}
-          >
-            {/* Colored top strip */}
-            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, borderRadius:"20px 20px 0 0", background:`linear-gradient(90deg,${card.color},${card.color}88)` }}/>
-
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {CARDS.map(card => (
+            <button key={card.num}
+              onClick={() => navigate(card.action)}
+              style={{
+                width:"100%", textAlign:"left", cursor:"pointer",
+                background:"linear-gradient(160deg, #ffffff 0%, #f5f9ff 100%)",
+                borderRadius:22, padding:"15px 14px",
+                border:"1px solid rgba(200,225,255,0.8)",
+                boxShadow:"0 4px 6px -1px rgba(0,0,0,0.06), 0 12px 32px rgba(15,42,92,0.1), inset 0 1px 0 rgba(255,255,255,0.9)",
+                transition:"all 0.18s", position:"relative", overflow:"hidden",
+              }}
+              onMouseEnter={e=>{
+                e.currentTarget.style.transform="translateY(-2px)";
+                e.currentTarget.style.boxShadow="0 8px 12px -2px rgba(0,0,0,0.08), 0 20px 40px rgba(15,42,92,0.16), inset 0 1px 0 rgba(255,255,255,0.9)";
+              }}
+              onMouseLeave={e=>{
+                e.currentTarget.style.transform="translateY(0)";
+                e.currentTarget.style.boxShadow="0 4px 6px -1px rgba(0,0,0,0.06), 0 12px 32px rgba(15,42,92,0.1), inset 0 1px 0 rgba(255,255,255,0.9)";
+              }}
+            >
+              {/* Left accent bar */}
               <div style={{
-                width:52, height:52, borderRadius:16, display:"flex", alignItems:"center",
-                justifyContent:"center", fontSize:26, flexShrink:0, background:card.light,
-                border:`1.5px solid ${card.border}`,
-              }}>{card.icon}</div>
+                position:"absolute", top:12, left:0, width:3, height:"calc(100% - 24px)",
+                borderRadius:"0 3px 3px 0", background:card.grad,
+              }}/>
 
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
-                  <span style={{ fontWeight:900, fontSize:14, color:"#1e293b" }}>{card.title}</span>
-                </div>
-                <p style={{ fontSize:11, color:"#64748b", lineHeight:1.5, margin:"0 0 8px" }}>{card.desc}</p>
+              <div style={{ display:"flex", alignItems:"center", gap:13, paddingLeft:6 }}>
+                {/* Icon container */}
                 <div style={{
-                  display:"inline-flex", alignItems:"center", gap:4,
-                  background:card.light, border:`1px solid ${card.border}`,
-                  borderRadius:6, padding:"2px 10px",
+                  width:52, height:52, borderRadius:17, display:"flex", alignItems:"center",
+                  justifyContent:"center", fontSize:26, flexShrink:0,
+                  background:card.grad,
+                  boxShadow:`0 6px 18px ${card.color}45`,
                 }}>
-                  <span style={{ fontSize:9, fontWeight:800, color:card.color, letterSpacing:0.5 }}>{card.badge}</span>
+                  {card.icon}
+                </div>
+
+                <div style={{ flex:1, minWidth:0 }}>
+                  {/* Number + title */}
+                  <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
+                    <span style={{
+                      fontSize:8, fontWeight:900, color:"#fff",
+                      background:`linear-gradient(135deg,${card.color},${card.color}cc)`,
+                      padding:"1px 6px", borderRadius:5, letterSpacing:0.5,
+                    }}>{card.num}</span>
+                    <span style={{ fontWeight:900, fontSize:14, color:"#0f1e36", letterSpacing:-0.3 }}>{card.title}</span>
+                  </div>
+                  <p style={{ fontSize:11, color:"#475569", lineHeight:1.55, margin:"0 0 7px" }}>{card.desc}</p>
+                  <div style={{
+                    display:"inline-flex", alignItems:"center", gap:4,
+                    background:"rgba(15,42,92,0.06)", borderRadius:7, padding:"2px 9px",
+                    border:"1px solid rgba(15,42,92,0.08)",
+                  }}>
+                    <span style={{ fontSize:9, fontWeight:800, color:card.color, letterSpacing:0.5 }}>{card.badge}</span>
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div style={{
+                  width:34, height:34, borderRadius:11, display:"flex", alignItems:"center",
+                  justifyContent:"center", flexShrink:0,
+                  background:card.grad,
+                  boxShadow:`0 4px 12px ${card.color}40`,
+                }}>
+                  <span style={{ color:"#fff", fontSize:17, fontWeight:900, lineHeight:1 }}>›</span>
                 </div>
               </div>
-
-              <div style={{
-                width:36, height:36, borderRadius:12, display:"flex", alignItems:"center",
-                justifyContent:"center", background:card.color, flexShrink:0,
-                boxShadow:`0 4px 12px ${card.color}40`,
-              }}>
-                <span style={{ color:"#fff", fontSize:18, lineHeight:1, fontWeight:900 }}>›</span>
-              </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── QUICK LINKS ── */}
-      <div style={{ padding:"4px 16px 20px", display:"flex", flexDirection:"column", gap:10 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
-          <span style={{ color:"#64748b", fontSize:11, fontWeight:700, letterSpacing:1.5 }}>NAVIGASI CEPAT</span>
+      <div style={{ padding:"14px 16px 24px" }}>
+
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, paddingLeft:2 }}>
+          <div style={{ width:3, height:16, borderRadius:2, background:"linear-gradient(180deg,#f59e0b,#fbbf24)" }}/>
+          <span style={{ color:"#0f2a5c", fontSize:11, fontWeight:900, letterSpacing:2 }}>NAVIGASI CEPAT</span>
         </div>
+
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <button onClick={()=>navigate("/leaderboard")} style={{
-            background:"linear-gradient(135deg,#fef3c7,#fde68a)",
-            border:"1.5px solid #fbbf24", borderRadius:18, padding:"14px 8px",
-            textAlign:"center", cursor:"pointer",
-            boxShadow:"0 2px 8px rgba(245,158,11,0.2)", transition:"all 0.18s",
-          }}
-            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)"; e.currentTarget.style.boxShadow="0 6px 16px rgba(245,158,11,0.3)";}}
-            onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 2px 8px rgba(245,158,11,0.2)";}}>
-            <div style={{ fontSize:24, marginBottom:5 }}>🏆</div>
-            <div style={{ fontSize:12, fontWeight:800, color:"#92400e" }}>Leaderboard</div>
-            <div style={{ fontSize:9, color:"#a16207", marginTop:1 }}>Papan Skor Juara</div>
-          </button>
-          <button onClick={()=>navigate("/pengaturan")} style={{
-            background:"linear-gradient(135deg,#eff6ff,#dbeafe)",
-            border:"1.5px solid #93c5fd", borderRadius:18, padding:"14px 8px",
-            textAlign:"center", cursor:"pointer",
-            boxShadow:"0 2px 8px rgba(36,120,212,0.15)", transition:"all 0.18s",
-          }}
-            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)"; e.currentTarget.style.boxShadow="0 6px 16px rgba(36,120,212,0.25)";}}
-            onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 2px 8px rgba(36,120,212,0.15)";}}>
-            <div style={{ fontSize:24, marginBottom:5 }}>⚙️</div>
-            <div style={{ fontSize:12, fontWeight:800, color:"#1e40af" }}>Pengaturan</div>
-            <div style={{ fontSize:9, color:"#3b82f6", marginTop:1 }}>Tema & Profil</div>
-          </button>
+          {[
+            { icon:"🏆", label:"Leaderboard", sub:"Papan Skor Juara", path:"/leaderboard",
+              grad:"linear-gradient(145deg,#78350f,#b45309,#f59e0b)", shadow:"rgba(180,83,9,0.4)" },
+            { icon:"⚙️", label:"Pengaturan", sub:"Tema & Profil", path:"/pengaturan",
+              grad:"linear-gradient(145deg,#0f2a5c,#1d4ed8,#3b82f6)", shadow:"rgba(29,78,216,0.4)" },
+          ].map(q=>(
+            <button key={q.path} onClick={()=>navigate(q.path)} style={{
+              background:q.grad, borderRadius:20, padding:"16px 10px",
+              textAlign:"center", cursor:"pointer", border:"none",
+              boxShadow:`0 6px 20px ${q.shadow}, 0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.15)`,
+              transition:"all 0.18s",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px) scale(1.02)";}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0) scale(1)";}}>
+              <div style={{ fontSize:26, marginBottom:6 }}>{q.icon}</div>
+              <div style={{ fontSize:12, fontWeight:900, color:"#fff", letterSpacing:0.2 }}>{q.label}</div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.65)", marginTop:2 }}>{q.sub}</div>
+            </button>
+          ))}
         </div>
 
         {/* Footer */}
-        <div style={{ textAlign:"center", paddingTop:4 }}>
-          <span style={{ fontSize:9, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase" }}>
-            POLINEMA × COMIC CAFE © 2025
-          </span>
+        <div style={{ textAlign:"center", marginTop:20, paddingBottom:4 }}>
+          <div style={{
+            display:"inline-flex", alignItems:"center", gap:8,
+            background:"rgba(15,42,92,0.05)", borderRadius:20, padding:"6px 16px",
+            border:"1px solid rgba(15,42,92,0.08)",
+          }}>
+            <span style={{ fontSize:9, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase", fontWeight:700 }}>
+              POLINEMA × COMIC CAFE
+            </span>
+            <span style={{ color:"#cbd5e1", fontSize:9 }}>·</span>
+            <span style={{ fontSize:9, color:"#f59e0b", letterSpacing:1, fontWeight:800 }}>© 2025</span>
+          </div>
         </div>
       </div>
     </div>
