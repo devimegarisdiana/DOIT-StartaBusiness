@@ -73,6 +73,7 @@ interface Transaction {
 
 interface Player {
   id: string; name: string; boardColor: BoardColor; isHost: boolean;
+  isBot: boolean;
   joinedAt: number; money: number; hutang: number; kap: KAP;
   transactions: Transaction[]; lastAction: ActionChoice;
   csrPaidThisRound: boolean; lemburThisRound: boolean;
@@ -156,7 +157,7 @@ function cleanOldRooms() {
 function makePlayer(id: string, name: string, boardColor: BoardColor, isHost: boolean, modal: number): Player {
   const ALL_COLORS: BoardColor[] = ["merah", "biru", "kuning", "hijau"];
   return {
-    id, name, boardColor, isHost, joinedAt: Date.now(),
+    id, name, boardColor, isHost, isBot: false, joinedAt: Date.now(),
     money: modal, hutang: 0,
     kap: { kreativitas: 0, socialNetworking: 0, internalLocus: 0, toleransiAmbiguitas: 0, bersediaRisiko: 0 },
     transactions: [], lastAction: null, csrPaidThisRound: false, lemburThisRound: false, csrKAP: 0,
@@ -210,6 +211,142 @@ function advanceRonde(room: Room) {
     room.actedThisPutaran = [];
     // Turn order: round N starts with player at index (N-1) % players.length
     room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
+  }
+}
+
+// Auto-process all pending bot turns across phases.
+// Called after every human player action so bots never block the game.
+function processBotTurns(room: Room) {
+  const hasBots = room.players.some(p => p.isBot);
+  if (!hasBots) return;
+
+  let safety = 0;
+  while (safety++ < 40) {
+    const phase = room.phase;
+
+    // ── cafe_setup ──
+    if (phase === "cafe_setup") {
+      let acted = false;
+      for (const bot of room.players.filter(p => p.isBot && !p.cafeSetupDone)) {
+        const cafe = room.cafes.find(c => c.id === `${bot.boardColor}-1` && c.ownerId === bot.id);
+        if (cafe) {
+          cafe.name = `Kafe ${bot.name}`;
+          cafe.menuItems = [{ type: "kopi", count: 1, price: 3 }];
+          cafe.seats = 2; cafe.isSetup = true;
+          bot.cafeSetupDone = true; acted = true;
+        }
+      }
+      if (room.players.every(p => p.cafeSetupDone)) {
+        room.phase = "csr"; room.currentTurnIndex = 0; continue;
+      }
+      if (!acted) break;
+      continue;
+    }
+
+    // ── csr ──
+    if (phase === "csr") {
+      let acted = false;
+      for (const bot of room.players.filter(p => p.isBot && !p.csrPaidThisRound)) {
+        bot.csrPaidThisRound = true; acted = true;
+      }
+      if (room.players.every(p => p.csrPaidThisRound)) {
+        room.phase = "operational"; room.actedThisPutaran = [];
+        room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
+        continue;
+      }
+      if (!acted) break;
+      continue;
+    }
+
+    // ── operational ── advance through bot turns
+    if (phase === "operational") {
+      const cur = room.players[room.currentTurnIndex];
+      if (!cur || !cur.isBot) break;
+      const botCafe = room.cafes.find(c => c.ownerId === cur.id && c.isSetup);
+      if (botCafe) {
+        const existing = botCafe.menuItems.find(m => m.type === "kopi");
+        if (existing) existing.count += 1;
+        else botCafe.menuItems.push({ type: "kopi", count: 1, price: 3 });
+        cur.kap.kreativitas = Math.min(7, cur.kap.kreativitas + 1);
+      }
+      cur.lastAction = "upgrade";
+      room.actedThisPutaran.push(cur.id);
+      room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
+      const humanActed = room.actedThisPutaran.filter(x => !x.includes("_")).length;
+      if (humanActed >= room.players.length) {
+        if (room.currentPutaran === 1) {
+          room.currentPutaran = 2; room.actedThisPutaran = [];
+          room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
+          room.players.forEach(p => { p.lastAction = null; });
+        } else {
+          room.phase = "lembur_offer"; room.actedThisPutaran = [];
+        }
+      }
+      continue;
+    }
+
+    // ── lembur_offer ──
+    if (phase === "lembur_offer") {
+      let acted = false;
+      for (const bot of room.players.filter(p => p.isBot && !room.actedThisPutaran.includes(p.id + "_lembur"))) {
+        room.actedThisPutaran.push(bot.id + "_lembur"); acted = true;
+      }
+      if (room.players.every(p => room.actedThisPutaran.includes(p.id + "_lembur"))) {
+        room.actedThisPutaran = [];
+        if (room.players.some(p => p.lemburThisRound)) {
+          room.phase = "operational"; room.currentPutaran = 3;
+          room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
+          room.players.forEach(p => { p.lastAction = null; });
+        } else {
+          room.phase = "customer_input";
+        }
+        continue;
+      }
+      if (!acted) break;
+      continue;
+    }
+
+    // ── customer_input ──
+    if (phase === "customer_input") {
+      let acted = false;
+      for (const bot of room.players.filter(p => p.isBot && !room.customerInputs.some(ci => ci.playerId === p.id))) {
+        room.customerInputs.push({ area: bot.boardColor, menuSought: ["kopi"], customerCount: 2, playerId: bot.id });
+        acted = true;
+      }
+      if (room.players.every(p => room.customerInputs.some(ci => ci.playerId === p.id))) {
+        room.phase = "revenue"; room.actedThisPutaran = []; continue;
+      }
+      if (!acted) break;
+      continue;
+    }
+
+    // ── revenue ──
+    if (phase === "revenue") {
+      let acted = false;
+      for (const bot of room.players.filter(p => p.isBot && !room.actedThisPutaran.includes(p.id + "_rev"))) {
+        room.actedThisPutaran.push(bot.id + "_rev"); acted = true;
+      }
+      if (room.players.every(p => room.actedThisPutaran.includes(p.id + "_rev"))) {
+        advanceRonde(room); continue;
+      }
+      if (!acted) break;
+      continue;
+    }
+
+    // ── end_game_sell ──
+    if (phase === "end_game_sell") {
+      for (const bot of room.players.filter(p => p.isBot && !p.cafesSold)) {
+        bot.cafesSold = true;
+        room.cafes.filter(c => c.ownerId === bot.id).forEach(c => { c.ownerId = null; });
+      }
+      if (room.players.every(p => p.cafesSold)) {
+        room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
+        room.status = "finished"; room.phase = "finished";
+      }
+      break;
+    }
+
+    break;
   }
 }
 
@@ -279,6 +416,10 @@ router.post("/rooms/:code/start", (req, res) => {
   const { playerId, testMode } = req.body as { playerId: string; testMode?: boolean };
   if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host yang bisa memulai" }); return; }
   if (!testMode && room.players.length < 2) { res.status(400).json({ error: "Minimal 2 pemain" }); return; }
+  // In test mode, mark all non-host players as bots
+  if (testMode) {
+    room.players.forEach(p => { if (p.id !== playerId) p.isBot = true; });
+  }
   // Assign slot 1 of each player's board color to them
   room.players.forEach(p => {
     const startSlot = room.cafes.find(c => c.id === `${p.boardColor}-1`);
@@ -287,6 +428,9 @@ router.post("/rooms/:code/start", (req, res) => {
   room.status = "playing";
   room.currentRonde = 1; room.currentPutaran = 1;
   room.phase = "cafe_setup"; room.actedThisPutaran = []; room.currentTurnIndex = 0;
+  // Auto-process bot turns — bots complete cafe_setup → CSR instantly, so
+  // human lands directly in CSR (or operational if all bots also skip CSR)
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -320,6 +464,7 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
     room.phase = "csr";
     room.currentTurnIndex = 0;
   }
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -355,6 +500,7 @@ router.post("/rooms/:code/csr", (req, res) => {
     room.phase = "operational"; room.actedThisPutaran = [];
     room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
   }
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -545,6 +691,7 @@ router.post("/rooms/:code/action", (req, res) => {
       room.phase = "lembur_offer"; room.actedThisPutaran = [];
     }
   }
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -605,6 +752,7 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
       }
     }
     setTimeout(() => { if (room.pendingBid?.status !== "pending") room.pendingBid = null; }, 5000);
+    processBotTurns(room);
   }
   res.json({ ok: true, status: room.pendingBid?.status || "pending" });
 });
@@ -634,6 +782,7 @@ router.post("/rooms/:code/lembur", (req, res) => {
       room.phase = "customer_input";
     }
   }
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -659,6 +808,7 @@ router.post("/rooms/:code/customer-input", (req, res) => {
   if (room.players.every(p => room.customerInputs.some(ci => ci.playerId === p.id))) {
     room.phase = "revenue"; room.actedThisPutaran = [];
   }
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -680,6 +830,7 @@ router.post("/rooms/:code/revenue", (req, res) => {
   if (room.players.every(p => room.actedThisPutaran.includes(p.id + "_rev"))) {
     advanceRonde(room);
   }
+  processBotTurns(room);
   res.json({ ok: true });
 });
 
@@ -727,6 +878,7 @@ router.post("/rooms/:code/end-game-sell", (req, res) => {
   // Release player's cafes
   room.cafes.filter(c => c.ownerId === playerId).forEach(c => { c.ownerId = null; });
 
+  processBotTurns(room);
   if (room.players.every(p => p.cafesSold)) {
     // Finalize KAP for all players
     room.players.forEach(p => {
