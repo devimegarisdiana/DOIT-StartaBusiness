@@ -1,7 +1,8 @@
 import { Suspense, useState, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars, Environment } from "@react-three/drei";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OrbitControlsImpl = any;
 import { useParams, useLocation } from "wouter";
 import { useRoom } from "../hooks/useRoom";
 import type { CafeSlot, MenuItem } from "../hooks/useRoom";
