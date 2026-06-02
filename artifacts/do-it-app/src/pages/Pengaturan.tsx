@@ -8,108 +8,143 @@ export default function Pengaturan() {
 
   function saveInstitution() {
     localStorage.setItem("doitInstitution", institution);
-    setSaved(true); setTimeout(()=>setSaved(false), 2000);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
   }
 
-  const t = THEMES[theme];
-
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto" style={{background: t.bg}}>
-      <div className="flex items-center gap-3 px-4 pt-5 pb-4" style={{background: t.header}}>
-        <div>
-          <h1 className="text-white font-black text-lg leading-tight">⚙️ Pengaturan</h1>
-          <p className="text-blue-200 text-xs">Konfigurasi & Premium UI</p>
-        </div>
-        <div className="ml-auto px-2 py-1 rounded-lg text-xs font-black text-white" style={{background:"rgba(255,255,255,0.2)"}}>
-          Premium
+    <div className="flex flex-col flex-1 overflow-y-auto" style={{ background: "#0a1628" }}>
+
+      {/* Header */}
+      <div style={{
+        background: "linear-gradient(160deg,#05111f,#0d1f3c)",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "20px 16px 16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <h1 style={{ color: "#f1f5f9", fontWeight: 900, fontSize: 20, margin: 0 }}>⚙️ Pengaturan</h1>
+            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, margin: "3px 0 0" }}>Konfigurasi & Personalisasi</p>
+          </div>
+          <div style={{
+            background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)",
+            borderRadius: 10, padding: "4px 12px",
+          }}>
+            <span style={{ color: "#fbbf24", fontSize: 9, fontWeight: 800, letterSpacing: 1.5 }}>PREMIUM</span>
+          </div>
         </div>
       </div>
 
-      <div className="px-4 py-4 flex flex-col gap-4">
+      <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-        {/* Tema */}
-        <div className="rounded-2xl overflow-hidden shadow-sm" style={{background: t.card, border:`1px solid ${t.border}`}}>
-          <div className="px-4 py-3 border-b" style={{borderColor: t.border}}>
-            <h2 className="font-black text-sm" style={{color: t.text}}>🎨 Tema & Skin</h2>
-            <p className="text-xs mt-0.5" style={{color: t.subtext}}>Pilih tampilan visual aplikasi</p>
-          </div>
-          <div className="p-4 flex flex-col gap-2">
+        {/* Tema & Skin */}
+        <Section title="🎨 Tema & Skin" desc="Pilih tampilan visual aplikasi">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {(Object.keys(THEMES) as Theme[]).map(k => {
               const th = THEMES[k];
               const active = theme === k;
               return (
-                <button key={k} onClick={()=>setTheme(k)}
-                  className="flex items-center gap-3 p-3 rounded-xl border-2 active:scale-95 transition-all"
+                <button key={k} onClick={() => setTheme(k)}
                   style={{
-                    background: active ? th.header : th.bg,
-                    borderColor: active ? th.accent : th.border,
+                    display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                    borderRadius: 14, border: active ? "1.5px solid rgba(96,165,250,0.5)" : "1px solid rgba(255,255,255,0.06)",
+                    background: active ? "rgba(36,120,212,0.12)" : "rgba(255,255,255,0.03)",
+                    cursor: "pointer", transition: "all 0.2s", textAlign: "left",
                   }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                    style={{background: th.header}}>
-                    <span>{th.emoji}</span>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className="font-black text-sm" style={{color: active?"#fff":t.text}}>{th.label}</div>
-                    <div className="text-[11px]" style={{color: active?"rgba(255,255,255,0.7)":t.subtext}}>
-                      {k==="default"?"Tampilan biru klasik":k==="dark"?"Mode gelap, nyaman di malam hari":"Warna cerah bergaya komik"}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, background: th.header,
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0,
+                    border: active ? "2px solid rgba(96,165,250,0.4)" : "2px solid transparent",
+                  }}>{th.emoji}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: active ? "#60a5fa" : "#e2e8f0" }}>{th.label}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>
+                      {k === "default" ? "Navy biru, tampilan profesional" : k === "dark" ? "Gelap total, nyaman malam hari" : "Warna cerah bergaya komik"}
                     </div>
                   </div>
-                  {active&&<div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{background:th.accent}}>✓</div>}
+                  {active && (
+                    <div style={{
+                      width: 22, height: 22, borderRadius: "50%", background: "linear-gradient(135deg,#2478d4,#60a5fa)",
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <span style={{ color: "#fff", fontSize: 11, fontWeight: 900 }}>✓</span>
+                    </div>
+                  )}
                 </button>
               );
             })}
           </div>
-        </div>
+        </Section>
 
-        {/* Nama Institusi */}
-        <div className="rounded-2xl overflow-hidden shadow-sm" style={{background: t.card, border:`1px solid ${t.border}`}}>
-          <div className="px-4 py-3 border-b" style={{borderColor: t.border}}>
-            <h2 className="font-black text-sm" style={{color: t.text}}>📱 Layar Sambutan Branded</h2>
-            <p className="text-xs mt-0.5" style={{color: t.subtext}}>Nama institusi/kelas yang tampil di splash screen</p>
+        {/* Institusi */}
+        <Section title="🏫 Layar Sambutan Branded" desc="Nama institusi tampil di splash screen">
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={institution} onChange={e => setInstitution(e.target.value)}
+              placeholder="cth: POLINEMA – Kelas A"
+              style={{
+                flex: 1, borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 600,
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                color: "#e2e8f0", outline: "none",
+              }}
+            />
+            <button onClick={saveInstitution} style={{
+              padding: "10px 16px", borderRadius: 12, fontWeight: 800, fontSize: 12,
+              background: saved ? "linear-gradient(135deg,#14532d,#16a34a)" : "linear-gradient(135deg,#1e3a8a,#2478d4)",
+              color: "#fff", border: "none", cursor: "pointer", flexShrink: 0, minWidth: 72,
+            }}>
+              {saved ? "✓ Tersimpan" : "Simpan"}
+            </button>
           </div>
-          <div className="p-4">
-            <label className="text-xs font-bold mb-2 block" style={{color: t.subtext}}>Nama Institusi / Kelas</label>
-            <div className="flex gap-2">
-              <input
-                value={institution} onChange={e=>setInstitution(e.target.value)}
-                placeholder="cth: POLINEMA – Kelas A"
-                className="flex-1 rounded-xl px-3 py-2.5 text-sm font-bold outline-none border-2"
-                style={{background: t.bg, borderColor: t.border, color: t.text}}
-              />
-              <button onClick={saveInstitution}
-                className="px-4 py-2.5 rounded-xl text-white font-black text-sm active:scale-95"
-                style={{background: saved?"#16a34a":t.accent}}>
-                {saved?"✓":"Simpan"}
-              </button>
-            </div>
-            <p className="text-[10px] mt-2" style={{color: t.subtext}}>
-              Nama ini akan muncul di splash screen setiap kali aplikasi dibuka.
-            </p>
-          </div>
-        </div>
+          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", marginTop: 8 }}>
+            Nama ini muncul di splash screen setiap kali aplikasi dibuka.
+          </p>
+        </Section>
 
-        {/* Info */}
-        <div className="rounded-2xl overflow-hidden shadow-sm" style={{background: t.card, border:`1px solid ${t.border}`}}>
-          <div className="px-4 py-3 border-b" style={{borderColor: t.border}}>
-            <h2 className="font-black text-sm" style={{color: t.text}}>ℹ️ Tentang Aplikasi</h2>
-          </div>
+        {/* Tentang */}
+        <Section title="ℹ️ Tentang Aplikasi" desc="">
           {[
-            {icon:"🎮", label:"Versi Aplikasi",    value:"2.0 Premium"},
-            {icon:"🎂", label:"Dikembangkan oleh", value:"ASA PRODUCTION"},
-            {icon:"📚", label:"Untuk",              value:"Edukasi Kewirausahaan"},
-            {icon:"💼", label:"UI Pack",            value:"Software House Edition"},
-          ].map((item,i)=>(
-            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b last:border-0" style={{borderColor: t.border}}>
-              <span className="text-2xl">{item.icon}</span>
-              <div className="flex-1">
-                <div className="text-sm font-bold" style={{color: t.text}}>{item.label}</div>
-              </div>
-              <div className="text-xs font-semibold" style={{color: t.subtext}}>{item.value}</div>
+            { icon: "🎮", label: "Versi Aplikasi",    value: "2.0 Premium" },
+            { icon: "🏢", label: "Dikembangkan oleh", value: "ASA PRODUCTION" },
+            { icon: "📚", label: "Untuk",              value: "Edukasi Kewirausahaan" },
+            { icon: "💎", label: "UI Pack",            value: "Software House Edition" },
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "10px 0", borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.05)" : "none",
+            }}>
+              <span style={{ fontSize: 20 }}>{item.icon}</span>
+              <span style={{ flex: 1, fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{item.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>{item.value}</span>
             </div>
           ))}
-        </div>
+        </Section>
 
       </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: "center", padding: "8px 16px 20px" }}>
+        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.1)", letterSpacing: 2.5, textTransform: "uppercase" }}>
+          ASA PRODUCTION © 2025 · UI SOFTWARE HOUSE PACK
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 18, overflow: "hidden",
+    }}>
+      <div style={{
+        padding: "14px 16px 10px",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
+      }}>
+        <div style={{ fontWeight: 900, fontSize: 13, color: "#e2e8f0" }}>{title}</div>
+        {desc && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>{desc}</div>}
+      </div>
+      <div style={{ padding: "14px 16px" }}>{children}</div>
     </div>
   );
 }
