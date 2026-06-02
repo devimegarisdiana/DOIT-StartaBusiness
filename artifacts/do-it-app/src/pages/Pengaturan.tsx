@@ -95,7 +95,7 @@ export default function Pengaturan() {
           </div>
           {[
             {icon:"🎮", label:"Versi Aplikasi",    value:"2.0 Premium"},
-            {icon:"🎂", label:"Dikembangkan oleh", value:"POLINEMA × Comic Cafe"},
+            {icon:"🎂", label:"Dikembangkan oleh", value:"ASA PRODUCTION"},
             {icon:"📚", label:"Untuk",              value:"Edukasi Kewirausahaan"},
             {icon:"💼", label:"UI Pack",            value:"Software House Edition"},
           ].map((item,i)=>(
