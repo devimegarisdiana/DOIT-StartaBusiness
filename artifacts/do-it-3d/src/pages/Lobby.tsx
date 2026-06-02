@@ -30,6 +30,35 @@ export default function Lobby() {
     finally { setLoading(false); }
   }
 
+  async function handleTestMode() {
+    const testName = name.trim() || "Tester";
+    setErr(""); setLoading(true);
+    try {
+      const { code, playerId } = await createRoom(testName, color, 4, modalAwal);
+      localStorage.setItem("doit3d_playerId", playerId);
+      localStorage.setItem("doit3d_playerName", testName);
+
+      const botColors = (["merah", "biru", "kuning", "hijau"] as BoardColor[]).filter(c => c !== color);
+      const botNames = ["Bot Alpha", "Bot Beta", "Bot Gamma"];
+      for (let i = 0; i < 3; i++) {
+        await fetch("/api/rooms/" + code + "/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerName: botNames[i], boardColor: botColors[i] }),
+        });
+      }
+
+      await fetch("/api/rooms/" + code + "/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId, testMode: true }),
+      });
+
+      setLocation(`/game/${code}`);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setLoading(false); }
+  }
+
   async function handleJoin() {
     if (!name.trim()) { setErr("Masukkan nama pemain"); return; }
     if (!joinCode.trim()) { setErr("Masukkan kode room"); return; }
@@ -193,6 +222,25 @@ export default function Lobby() {
               </span>
             ) : tab === "create" ? "🏗️ Buat Room" : "🚀 Gabung!"}
           </button>
+
+          {/* Test mode button — only on Create tab */}
+          {tab === "create" && (
+            <button
+              onClick={handleTestMode}
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl font-semibold text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{
+                background: "rgba(251,191,36,0.08)",
+                border: "1.5px solid rgba(251,191,36,0.3)",
+                color: "#fbbf24",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(251,191,36,0.15)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(251,191,36,0.08)")}
+            >
+              <span>⚡</span>
+              <span>Test Mode — Langsung Main Sendiri (+ 3 Bot)</span>
+            </button>
+          )}
         </div>
       </div>
 
