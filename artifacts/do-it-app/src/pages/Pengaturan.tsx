@@ -132,7 +132,7 @@ export default function Pengaturan() {
       {/* Footer */}
       <div style={{ textAlign:"center", padding:"4px 16px 20px" }}>
         <span style={{ fontSize:9, color: isDark ? "rgba(255,255,255,0.1)" : "#94a3b8", letterSpacing:2.5, textTransform:"uppercase" }}>
-          POLINEMA × COMIC CAFE © 2025 · UI PACK BY ASA PRODUCTION
+          POLINEMA × COMIC CAFE © 2025 · UI PACK BY DMAFORGE
         </span>
       </div>
     </div>
