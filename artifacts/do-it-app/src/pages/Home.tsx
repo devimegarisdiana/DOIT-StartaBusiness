@@ -9,7 +9,8 @@ const CARDS = [
     color: "#2478d4",
     grad: "linear-gradient(135deg,#1e3a8a,#2478d4)",
     badge: "PDF Guide",
-    action: null,
+    action: "/panduan.pdf",
+    external: true,
   },
   {
     num: "02",
@@ -141,7 +142,7 @@ export default function Home() {
 
         {CARDS.map(card=>(
           <button key={card.num}
-            onClick={()=>card.action?navigate(card.action):{}}
+            onClick={()=>{ if(!card.action) return; if((card as {external?:boolean}).external) window.open(card.action,"_blank"); else navigate(card.action); }}
             style={{
               width:"100%",textAlign:"left",background:"rgba(255,255,255,0.03)",
               border:"1px solid rgba(255,255,255,0.07)",borderRadius:20,
