@@ -6,6 +6,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Riwayat from "./pages/Riwayat";
 import Pengaturan from "./pages/Pengaturan";
 import AdminDashboard from "./pages/AdminDashboard";
+import PanduanViewer from "./pages/PanduanViewer";
 import SplashScreen from "./components/SplashScreen";
 import { ThemeProvider, useTheme, THEMES } from "./contexts/ThemeContext";
 
@@ -25,7 +26,7 @@ function BottomNav() {
       ? "beranda"
       : NAV_ITEMS.find(n => location.pathname.startsWith(n.path) && n.path !== "/")?.id ?? "beranda";
 
-  const hideNav = location.pathname === "/game" || location.pathname.startsWith("/admin");
+  const hideNav = location.pathname === "/game" || location.pathname.startsWith("/admin") || location.pathname === "/panduan";
   if (hideNav) return null;
 
   return (
@@ -90,6 +91,7 @@ function AppContent() {
           <Route path="/riwayat" element={<Riwayat />} />
           <Route path="/pengaturan" element={<Pengaturan />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/panduan" element={<PanduanViewer />} />
         </Routes>
         <BottomNav />
       </div>

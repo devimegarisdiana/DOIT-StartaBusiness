@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 const CARDS = [
   {
     num: "01", icon: "📘", title: "Panduan Permainan",
-    desc: "Unduh buku panduan lengkap aturan, komponen, dan cara bermain DO IT.",
+    desc: "Baca panduan lengkap aturan, komponen, dan cara bermain DO IT.",
     color: "#2478d4", light: "#eff6ff", border: "#bfdbfe",
-    badge: "PDF Guide", action: "/panduan.pdf", external: true,
+    badge: "PDF Guide", action: "/panduan", external: false,
   },
   {
     num: "02", icon: "🎮", title: "Mulai Game",
