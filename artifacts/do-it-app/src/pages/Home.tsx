@@ -31,7 +31,7 @@ export default function Home() {
     }}>
 
       {/* ── HERO ── */}
-      <div style={{ position:"relative", overflow:"hidden" }}>
+      <div className="anim-hero" style={{ position:"relative", overflow:"hidden" }}>
         <img src="/hero-bg.png" alt="DO IT hero" style={{ width:"100%", display:"block" }}/>
 
         {/* Bottom gradient fade */}
@@ -40,8 +40,8 @@ export default function Home() {
           background:"linear-gradient(to bottom, transparent, #e8f4ff)",
         }}/>
 
-        {/* Institution pill */}
-        <div style={{
+        {/* Institution pill — floats */}
+        <div className="anim-float-slow" style={{
           position:"absolute", bottom:12, left:14,
           display:"inline-flex", alignItems:"center", gap:5,
           background:"rgba(255,255,255,0.92)", borderRadius:20, padding:"5px 13px",
@@ -53,13 +53,13 @@ export default function Home() {
           <span style={{ color:"#0f2a5c", fontSize:10, fontWeight:800, letterSpacing:0.3 }}>{institution}</span>
         </div>
 
-        {/* Premium badge */}
-        <div style={{
+        {/* Premium badge — glows + floats offset */}
+        <div className="anim-glow-pulse" style={{
           position:"absolute", bottom:12, right:14,
           background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",
           borderRadius:20, padding:"5px 12px",
-          boxShadow:"0 4px 14px rgba(29,78,216,0.45)",
           border:"1px solid rgba(99,160,255,0.3)",
+          animationDelay: "0.8s",
         }}>
           <span style={{ color:"#fbbf24", fontSize:9, fontWeight:900, letterSpacing:1.8 }}>✦ v2.0 PREMIUM</span>
         </div>
@@ -68,17 +68,24 @@ export default function Home() {
       {/* ── MAIN CARDS ── */}
       <div style={{ padding:"18px 16px 6px" }}>
 
-        <div style={{
-          display:"flex", alignItems:"center", gap:8, marginBottom:14,
-          paddingLeft:2,
+        {/* Section header — slides in */}
+        <div className="anim-slide-up" style={{
+          display:"flex", alignItems:"center", gap:8, marginBottom:14, paddingLeft:2,
+          animationDelay: "0.1s",
         }}>
-          <div style={{ width:3, height:16, borderRadius:2, background:"linear-gradient(180deg,#f59e0b,#fbbf24)" }}/>
+          {/* Shimmer gold bar */}
+          <div style={{
+            width:3, height:16, borderRadius:2, flexShrink:0,
+            background:"linear-gradient(180deg,#f59e0b,#fbbf24)",
+            boxShadow:"0 0 6px rgba(245,158,11,0.6)",
+          }}/>
           <span style={{ color:"#0f2a5c", fontSize:11, fontWeight:900, letterSpacing:2 }}>FITUR UTAMA</span>
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {CARDS.map(card => (
+          {CARDS.map((card, i) => (
             <button key={card.num}
+              className={`anim-slide-up tap-scale`}
               onClick={() => navigate(card.action)}
               style={{
                 width:"100%", textAlign:"left", cursor:"pointer",
@@ -86,7 +93,9 @@ export default function Home() {
                 borderRadius:22, padding:"15px 14px",
                 border:"1px solid rgba(200,225,255,0.8)",
                 boxShadow:"0 4px 6px -1px rgba(0,0,0,0.06), 0 12px 32px rgba(15,42,92,0.1), inset 0 1px 0 rgba(255,255,255,0.9)",
-                transition:"all 0.18s", position:"relative", overflow:"hidden",
+                transition:"transform 0.18s, box-shadow 0.18s",
+                position:"relative", overflow:"hidden",
+                animationDelay: `${0.15 + i * 0.08}s`,
               }}
               onMouseEnter={e=>{
                 e.currentTarget.style.transform="translateY(-2px)";
@@ -115,7 +124,6 @@ export default function Home() {
                 </div>
 
                 <div style={{ flex:1, minWidth:0 }}>
-                  {/* Number + title */}
                   <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
                     <span style={{
                       fontSize:8, fontWeight:900, color:"#fff",
@@ -152,26 +160,37 @@ export default function Home() {
       {/* ── QUICK LINKS ── */}
       <div style={{ padding:"14px 16px 24px" }}>
 
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, paddingLeft:2 }}>
-          <div style={{ width:3, height:16, borderRadius:2, background:"linear-gradient(180deg,#f59e0b,#fbbf24)" }}/>
+        <div className="anim-slide-up" style={{
+          display:"flex", alignItems:"center", gap:8, marginBottom:14, paddingLeft:2,
+          animationDelay: "0.38s",
+        }}>
+          <div style={{
+            width:3, height:16, borderRadius:2, flexShrink:0,
+            background:"linear-gradient(180deg,#f59e0b,#fbbf24)",
+            boxShadow:"0 0 6px rgba(245,158,11,0.6)",
+          }}/>
           <span style={{ color:"#0f2a5c", fontSize:11, fontWeight:900, letterSpacing:2 }}>NAVIGASI CEPAT</span>
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {[
             { icon:"🏆", label:"Leaderboard", sub:"Papan Skor Juara", path:"/leaderboard",
-              grad:"linear-gradient(145deg,#78350f,#b45309,#f59e0b)", shadow:"rgba(180,83,9,0.4)" },
+              grad:"linear-gradient(145deg,#78350f,#b45309,#f59e0b)", shadow:"rgba(180,83,9,0.4)", delay:"0.42s" },
             { icon:"⚙️", label:"Pengaturan", sub:"Tema & Profil", path:"/pengaturan",
-              grad:"linear-gradient(145deg,#0f2a5c,#1d4ed8,#3b82f6)", shadow:"rgba(29,78,216,0.4)" },
+              grad:"linear-gradient(145deg,#0f2a5c,#1d4ed8,#3b82f6)", shadow:"rgba(29,78,216,0.4)", delay:"0.48s" },
           ].map(q=>(
-            <button key={q.path} onClick={()=>navigate(q.path)} style={{
-              background:q.grad, borderRadius:20, padding:"16px 10px",
-              textAlign:"center", cursor:"pointer", border:"none",
-              boxShadow:`0 6px 20px ${q.shadow}, 0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.15)`,
-              transition:"all 0.18s",
-            }}
-              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px) scale(1.02)";}}
-              onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0) scale(1)";}}>
+            <button key={q.path} onClick={()=>navigate(q.path)}
+              className="anim-scale-in tap-scale"
+              style={{
+                background:q.grad, borderRadius:20, padding:"16px 10px",
+                textAlign:"center", cursor:"pointer", border:"none",
+                boxShadow:`0 6px 20px ${q.shadow}, 0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.15)`,
+                transition:"transform 0.18s, box-shadow 0.18s",
+                animationDelay: q.delay,
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px) scale(1.02)"; e.currentTarget.style.boxShadow=`0 10px 28px ${q.shadow}, 0 4px 10px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.15)`;}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0) scale(1)"; e.currentTarget.style.boxShadow=`0 6px 20px ${q.shadow}, 0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.15)`;}}
+            >
               <div style={{ fontSize:26, marginBottom:6 }}>{q.icon}</div>
               <div style={{ fontSize:12, fontWeight:900, color:"#fff", letterSpacing:0.2 }}>{q.label}</div>
               <div style={{ fontSize:9, color:"rgba(255,255,255,0.65)", marginTop:2 }}>{q.sub}</div>
@@ -180,7 +199,10 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <div style={{ textAlign:"center", marginTop:20, paddingBottom:4 }}>
+        <div className="anim-fade-in" style={{
+          textAlign:"center", marginTop:20, paddingBottom:4,
+          animationDelay: "0.55s",
+        }}>
           <div style={{
             display:"inline-flex", alignItems:"center", gap:8,
             background:"rgba(15,42,92,0.05)", borderRadius:20, padding:"6px 16px",
