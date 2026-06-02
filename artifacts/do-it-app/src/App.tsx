@@ -31,10 +31,10 @@ function BottomNav() {
   return (
     <div className="flex-shrink-0 w-full flex items-center justify-around z-50"
       style={{
-        background: "rgba(8,18,36,0.97)",
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        backdropFilter: "blur(20px)",
-        paddingTop: 10, paddingBottom: 14,
+        background: "#fff",
+        borderTop: "1.5px solid #e2eeff",
+        boxShadow: "0 -4px 20px rgba(36,120,212,0.08)",
+        paddingTop: 8, paddingBottom: 12,
       }}>
       {NAV_ITEMS.map(nav => {
         const active = activeId === nav.id;
@@ -43,21 +43,20 @@ function BottomNav() {
             className="flex flex-col items-center gap-1 min-w-[56px] relative">
             {active && (
               <div style={{
-                position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)",
-                width: 32, height: 2, borderRadius: 99,
-                background: "linear-gradient(90deg,#2478d4,#60a5fa)",
+                position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
+                width: 28, height: 3, borderRadius: 99,
+                background: "linear-gradient(90deg,#1a3a6b,#2478d4)",
               }}/>
             )}
             <div style={{
-              width: 36, height: 36, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-              background: active ? "rgba(36,120,212,0.15)" : "transparent",
-              border: active ? "1px solid rgba(36,120,212,0.25)" : "1px solid transparent",
-              transition: "all 0.2s",
-              fontSize: 18,
+              width: 38, height: 38, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center",
+              background: active ? "#eff6ff" : "transparent",
+              border: active ? "1.5px solid #bfdbfe" : "1.5px solid transparent",
+              transition: "all 0.2s", fontSize: 18,
             }}>{nav.icon}</div>
             <span style={{
               fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
-              color: active ? "#60a5fa" : "rgba(255,255,255,0.25)",
+              color: active ? "#2478d4" : "#94a3b8",
               transition: "color 0.2s",
             }}>{nav.label}</span>
           </button>
@@ -80,7 +79,7 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="min-h-screen flex items-start justify-center" style={{ background: "#060e1c" }}>
+    <div className="min-h-screen flex items-start justify-center" style={{ background: "#c8e6ff" }}>
       {!splashDone && <SplashScreen onDone={handleSplashDone} />}
       <div className="relative w-full max-w-[430px] min-h-screen flex flex-col"
         style={{ fontFamily: "'Inter', 'Nunito', sans-serif" }}>
