@@ -114,7 +114,7 @@ export default function Pengaturan() {
             { icon:"🎮", label:"Versi Aplikasi",    value:"2.0 Premium" },
             { icon:"🏢", label:"Dikembangkan oleh", value:"POLINEMA × Comic Cafe" },
             { icon:"📚", label:"Untuk",              value:"Edukasi Kewirausahaan" },
-            { icon:"💎", label:"UI Pack",            value:"ASA Production" },
+            { icon:"💎", label:"UI Pack",            value:"ASAFORGE" },
           ].map((item, i) => (
             <div key={i} style={{
               display:"flex", alignItems:"center", gap:12,
