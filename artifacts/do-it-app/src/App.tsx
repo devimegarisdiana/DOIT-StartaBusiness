@@ -78,13 +78,14 @@ function BottomNav() {
 
 function AppContent() {
   const [splashDone, setSplashDone] = useState(() => {
-    return !!sessionStorage.getItem("doitSplashSeen");
+    // Skip splash if: already seen (localStorage persists), or if directly on /game
+    return !!localStorage.getItem("doitSplashSeen") || window.location.pathname === "/game";
   });
   const { theme } = useTheme();
   const t = THEMES[theme];
 
   const handleSplashDone = useCallback(() => {
-    sessionStorage.setItem("doitSplashSeen", "1");
+    localStorage.setItem("doitSplashSeen", "1");
     setSplashDone(true);
   }, []);
 
