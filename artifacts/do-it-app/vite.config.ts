@@ -30,6 +30,22 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    // Suppress Vite's "[vite] connecting..." / "[vite] reconnecting..." console
+    // messages that appear in Replit's console view due to proxy WebSocket drops.
+    {
+      name: "suppress-vite-console",
+      apply: "serve" as const,
+      transformIndexHtml() {
+        return [
+          {
+            tag: "script",
+            attrs: { type: "text/javascript" },
+            children: `(function(){var _l=console.log.bind(console);console.log=function(){if(typeof arguments[0]==='string'&&arguments[0].startsWith('[vite]'))return;_l.apply(console,arguments)};})();`,
+            injectTo: "head-prepend" as const,
+          },
+        ];
+      },
+    },
   ],
   resolve: {
     alias: {
