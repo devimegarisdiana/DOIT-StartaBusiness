@@ -15,7 +15,7 @@ kind = "web"
   localPort = 22500
 
   [services.development]
-  run = "pnpm --filter @workspace/do-it-app run build && pnpm --filter @workspace/do-it-app run serve"
+  run = "pnpm --filter @workspace/do-it-app run dev"
 
   [services.production]
   build = [ "pnpm", "--filter", "@workspace/do-it-app", "run", "build" ]

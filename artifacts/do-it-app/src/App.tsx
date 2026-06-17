@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Home from "./pages/Home";
 import GamePage from "./pages/GamePage";
 import Leaderboard from "./pages/Leaderboard";
@@ -9,6 +9,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import PanduanViewer from "./pages/PanduanViewer";
 import SplashScreen from "./components/SplashScreen";
 import { ThemeProvider, useTheme, THEMES } from "./contexts/ThemeContext";
+
+const SESSION_KEY = "doit_session";
 
 const NAV_ITEMS = [
   { id: "beranda",    label: "Beranda",    icon: "🏠", path: "/" },
@@ -44,7 +46,6 @@ function BottomNav() {
         return (
           <button key={nav.id} onClick={() => navigate(nav.path)}
             className="flex flex-col items-center gap-1 min-w-[56px] relative">
-            {/* Gold top indicator */}
             {active && (
               <div style={{
                 position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
@@ -78,11 +79,26 @@ function BottomNav() {
 
 function AppContent() {
   const [splashDone, setSplashDone] = useState(() => {
-    // Skip splash if: already seen (localStorage persists), or if directly on /game
     return !!localStorage.getItem("doitSplashSeen") || window.location.pathname === "/game";
   });
   const { theme } = useTheme();
   const t = THEMES[theme];
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // If user lands on "/" but has an active game session, immediately redirect to /game
+  useEffect(() => {
+    if (location.pathname === "/") {
+      try {
+        const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+        if (session?.roomCode && session?.myId) {
+          navigate("/game", { replace: true });
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, [location.pathname, navigate]);
 
   const handleSplashDone = useCallback(() => {
     localStorage.setItem("doitSplashSeen", "1");
