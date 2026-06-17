@@ -142,11 +142,23 @@ function MenuEditor({ items, onChange }: { items: MenuItem[]; onChange: (items: 
   );
 }
 
+const SESSION_KEY = "doit_session";
+function saveSession(myId: string, roomCode: string) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ myId, roomCode }));
+}
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+function loadSession(): { myId: string; roomCode: string } | null {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
+}
+
 export default function GamePage() {
   const navigate = useNavigate();
   const [appPhase, setAppPhase] = useState<AppPhase>("lobby");
   const [myId, setMyId] = useState("");
   const [room, setRoom] = useState<Room|null>(null);
+  const [restoring, setRestoring] = useState(true);
 
   // Forms
   const [createName, setCreateName] = useState("");
@@ -195,10 +207,10 @@ export default function GamePage() {
     try {
       const res = await fetch(`${API}/rooms/${code}`);
       if (res.status === 404) {
-        // Room hilang (server restart atau kode salah) — kembali ke Home
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        clearSession();
         setRoom(null);
-        setAppPhase("home");
+        setAppPhase("lobby");
         setErr("Room tidak ditemukan. Server mungkin restart — buat room baru.");
         return;
       }
@@ -207,6 +219,27 @@ export default function GamePage() {
       setRoom(data);
       if (data.status==="playing"||data.status==="finished") setAppPhase("game");
     } catch {/* ignore network errors */}
+  }, []);
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const saved = loadSession();
+    if (!saved) { setRestoring(false); return; }
+    fetch(`${API}/rooms/${saved.roomCode}`)
+      .then(res => res.ok ? res.json() : null)
+      .then((data: Room | null) => {
+        if (data && data.players.some(p => p.id === saved.myId)) {
+          setMyId(saved.myId);
+          setRoom(data);
+          if (data.status === "waiting") setAppPhase("waiting");
+          else if (data.status === "playing" || data.status === "finished") setAppPhase("game");
+        } else {
+          clearSession();
+        }
+      })
+      .catch(() => { clearSession(); })
+      .finally(() => setRestoring(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -238,6 +271,7 @@ export default function GamePage() {
       const data = await res.json();
       if (!res.ok) return setErr(data.error);
       setMyId(data.playerId);
+      saveSession(data.playerId, data.code);
       await pollRoom(data.code);
       setAppPhase("waiting");
     } catch { setErr("Gagal terhubung"); }
@@ -255,6 +289,7 @@ export default function GamePage() {
       const data = await res.json();
       if (!res.ok) return setErr(data.error);
       setMyId(data.playerId);
+      saveSession(data.playerId, joinCode.toUpperCase());
       await pollRoom(joinCode.toUpperCase());
       setAppPhase("waiting");
     } catch { setErr("Gagal terhubung"); }
@@ -285,6 +320,14 @@ export default function GamePage() {
 
   const myPlayer = room?.players.find(p=>p.id===myId);
   const isHost = room?.hostId===myId;
+
+  // ── RESTORING SESSION ──────────────────────────────────────────────────
+  if (restoring) return (
+    <div className="flex flex-col flex-1 items-center justify-center" style={{ background:"#d6eeff" }}>
+      <div className="text-4xl mb-3 animate-pulse">☕</div>
+      <p className="text-gray-500 font-bold text-sm">Memuat sesi...</p>
+    </div>
+  );
 
   // ── LOBBY ──────────────────────────────────────────────────────────────
   if (appPhase==="lobby") return (
@@ -540,7 +583,7 @@ export default function GamePage() {
                 📊 Dashboard
               </button>
             </div>
-            <button onClick={()=>navigate("/")} className="w-full py-3.5 rounded-2xl font-black text-sm bg-white text-gray-600 border border-gray-200 active:scale-95">
+            <button onClick={()=>{clearSession();navigate("/");}} className="w-full py-3.5 rounded-2xl font-black text-sm bg-white text-gray-600 border border-gray-200 active:scale-95">
               🏠 Kembali ke Beranda
             </button>
           </div>
