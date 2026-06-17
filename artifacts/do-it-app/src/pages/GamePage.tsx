@@ -203,7 +203,7 @@ export default function GamePage() {
   const [err, setErr] = useState("");
   const pollingRef = useRef<ReturnType<typeof setInterval>|null>(null);
 
-  const pollRoom = useCallback(async (code: string) => {
+  const pollRoom = useCallback(async (code: string, forceUpdate = false) => {
     try {
       const res = await fetch(`${API}/rooms/${code}`);
       if (res.status === 404) {
@@ -216,7 +216,25 @@ export default function GamePage() {
       }
       if (!res.ok) return;
       const data: Room = await res.json();
-      setRoom(data);
+      // Smart update: only re-render when something meaningful changed
+      // This prevents disrupting form inputs during a player's turn.
+      // forceUpdate=true is used after the player submits an action.
+      setRoom(prev => {
+        if (!prev || forceUpdate) return data;
+        const changed =
+          prev.currentTurnIndex !== data.currentTurnIndex ||
+          prev.phase !== data.phase ||
+          prev.currentRonde !== data.currentRonde ||
+          prev.currentPutaran !== data.currentPutaran ||
+          prev.status !== data.status ||
+          prev.actedThisPutaran.length !== data.actedThisPutaran.length ||
+          JSON.stringify(prev.pendingBid) !== JSON.stringify(data.pendingBid) ||
+          prev.players.some((p, i) =>
+            p.money !== data.players[i]?.money ||
+            p.hutang !== data.players[i]?.hutang
+          );
+        return changed ? data : prev;
+      });
       if (data.status==="playing"||data.status==="finished") setAppPhase("game");
     } catch {/* ignore network errors */}
   }, []);
@@ -244,7 +262,9 @@ export default function GamePage() {
 
   useEffect(() => {
     if ((appPhase==="waiting"||appPhase==="game") && room?.code) {
-      pollingRef.current = setInterval(()=>pollRoom(room.code), 2500);
+      // 8-second interval: long enough to not disrupt form filling,
+      // short enough to detect other players' actions within a turn.
+      pollingRef.current = setInterval(()=>pollRoom(room.code), 8000);
       return ()=>{ if (pollingRef.current) clearInterval(pollingRef.current); };
     }
   }, [appPhase, room?.code, pollRoom]);
@@ -256,7 +276,7 @@ export default function GamePage() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error||"Error");
-    await pollRoom(room!.code);
+    await pollRoom(room!.code, true);
     return data;
   }
 
