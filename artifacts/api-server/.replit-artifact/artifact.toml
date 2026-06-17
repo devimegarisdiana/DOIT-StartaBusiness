@@ -9,7 +9,7 @@ paths = ["/api"]
 localPort = 8080
 
 [services.development]
-run = "pnpm --filter @workspace/api-server run dev"
+run = "/bin/sh -c 'cd /home/runner/workspace/artifacts/api-server && node build.mjs && exec node --enable-source-maps dist/index.mjs'"
 
 [services.production]
 build = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]

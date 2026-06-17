@@ -1,4 +1,6 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
 
 const router = Router();
 
@@ -52,9 +54,41 @@ interface Room {
   createdAt: number;
 }
 
-// ─── In-memory store ──────────────────────────────────────────────────────────
+// ─── File persistence ─────────────────────────────────────────────────────────
 
-const rooms = new Map<string, Room>();
+const ROOMS_FILE = path.join("/tmp", "doit-rooms.json");
+const ROOM_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function loadRoomsFromDisk(): Map<string, Room> {
+  try {
+    if (!fs.existsSync(ROOMS_FILE)) return new Map();
+    const raw = fs.readFileSync(ROOMS_FILE, "utf8");
+    const obj = JSON.parse(raw) as Record<string, Room>;
+    const now = Date.now();
+    const map = new Map<string, Room>();
+    for (const [code, room] of Object.entries(obj)) {
+      // Skip rooms older than TTL
+      if (now - room.createdAt < ROOM_TTL_MS) map.set(code, room);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+function saveRoomsToDisk(map: Map<string, Room>) {
+  try {
+    const obj: Record<string, Room> = {};
+    for (const [code, room] of map) obj[code] = room;
+    fs.writeFileSync(ROOMS_FILE, JSON.stringify(obj), "utf8");
+  } catch { /* ignore */ }
+}
+
+const rooms = loadRoomsFromDisk();
+
+function persist() {
+  saveRoomsToDisk(rooms);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -120,7 +154,6 @@ function advanceRonde(room: Room) {
   }
 }
 
-// Auto-process all pending bot turns across phases.
 function processBotTurns(room: Room) {
   const hasBots = room.players.some(p => p.isBot);
   if (!hasBots) return;
@@ -245,7 +278,6 @@ function processBotTurns(room: Room) {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// POST /api/rooms
 router.post("/rooms", (req, res) => {
   const { hostName, boardColor, maxPlayers, modalAwal } = req.body as {
     hostName: string; boardColor?: BoardColor; maxPlayers?: number; modalAwal?: number;
@@ -269,10 +301,10 @@ router.post("/rooms", (req, res) => {
     createdAt: Date.now(),
   };
   rooms.set(code, room);
+  persist();
   res.json({ code, playerId: hostId });
 });
 
-// GET /api/rooms/:code
 router.get("/rooms/:code", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -285,7 +317,6 @@ router.get("/rooms/:code", (req, res) => {
   });
 });
 
-// POST /api/rooms/:code/join
 router.post("/rooms/:code/join", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -297,10 +328,10 @@ router.post("/rooms/:code/join", (req, res) => {
   const chosenColor: BoardColor = (boardColor && !takenColors.includes(boardColor)) ? boardColor : (["merah", "biru", "kuning", "hijau"] as BoardColor[]).find(c => !takenColors.includes(c)) || "merah";
   const playerId = generateId();
   room.players.push(makePlayer(playerId, playerName.trim(), chosenColor, false, room.modalAwal));
+  persist();
   res.json({ playerId, code: room.code });
 });
 
-// POST /api/rooms/:code/start
 router.post("/rooms/:code/start", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -318,10 +349,10 @@ router.post("/rooms/:code/start", (req, res) => {
   room.currentRonde = 1; room.currentPutaran = 1;
   room.phase = "cafe_setup"; room.actedThisPutaran = []; room.currentTurnIndex = 0;
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/cafe-setup
 router.post("/rooms/:code/cafe-setup", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -341,10 +372,10 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
   cafe.isSetup = true; player.cafeSetupDone = true;
   if (room.players.every(p => p.cafeSetupDone)) { room.phase = "csr"; room.currentTurnIndex = 0; }
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/csr
 router.post("/rooms/:code/csr", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -373,10 +404,10 @@ router.post("/rooms/:code/csr", (req, res) => {
     room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
   }
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/action
 router.post("/rooms/:code/action", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -384,7 +415,7 @@ router.post("/rooms/:code/action", (req, res) => {
   if (room.pendingBid?.status === "pending") { res.status(400).json({ error: "Ada bidding yang belum selesai" }); return; }
 
   const currentPlayer = room.players[room.currentTurnIndex];
-  const { playerId, action, cafeId, upgradeType, menuType, targetCafeId, area, bidType, bidPrice, expandSpecs, hutang } = req.body as {
+  const { playerId, action, cafeId, upgradeType, menuType, targetCafeId, area, bidType, expandSpecs, hutang } = req.body as {
     playerId: string; action: ActionChoice;
     cafeId?: string; upgradeType?: UpgradeType; menuType?: MenuType; targetCafeId?: string;
     area?: BoardColor; bidType?: "open_bid" | "buyout"; bidPrice?: number;
@@ -394,7 +425,6 @@ router.post("/rooms/:code/action", (req, res) => {
 
   if (!currentPlayer || currentPlayer.id !== playerId) { res.status(403).json({ error: "Bukan giliran kamu" }); return; }
 
-  // Toleransi ambiguitas
   const prevIdx = room.currentTurnIndex > 0 ? room.currentTurnIndex - 1 : room.players.length - 1;
   const prevPlayer = room.players[prevIdx];
   if (prevPlayer && prevPlayer.lastAction === action && room.actedThisPutaran.length > 0) {
@@ -487,6 +517,7 @@ router.post("/rooms/:code/action", (req, res) => {
       } else {
         room.pendingBid = { cafeId: emptySlot.id, bidderId: playerId, cafeName: emptySlot.name, openPrice: oPrice, responses: [], status: "pending" };
         currentPlayer.lastAction = action;
+        persist();
         res.json({ ok: true, pendingBid: true }); return;
       }
       currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
@@ -505,10 +536,10 @@ router.post("/rooms/:code/action", (req, res) => {
     } else { room.phase = "lembur_offer"; room.actedThisPutaran = []; }
   }
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/bid-respond
 router.post("/rooms/:code/bid-respond", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -546,13 +577,13 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
       if (room.currentPutaran === 1) { room.currentPutaran=2; room.actedThisPutaran=[]; room.currentTurnIndex=(room.currentRonde-1)%room.players.length; room.players.forEach(p=>{p.lastAction=null;}); }
       else { room.phase="lembur_offer"; room.actedThisPutaran=[]; }
     }
-    setTimeout(() => { if (room.pendingBid?.status !== "pending") room.pendingBid = null; }, 5000);
+    setTimeout(() => { if (room.pendingBid?.status !== "pending") room.pendingBid = null; persist(); }, 5000);
     processBotTurns(room);
+    persist();
   }
   res.json({ ok: true, status: room.pendingBid?.status || "pending" });
 });
 
-// POST /api/rooms/:code/lembur
 router.post("/rooms/:code/lembur", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -575,10 +606,10 @@ router.post("/rooms/:code/lembur", (req, res) => {
     } else { room.phase = "customer_input"; }
   }
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/customer-input
 router.post("/rooms/:code/customer-input", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -592,10 +623,10 @@ router.post("/rooms/:code/customer-input", (req, res) => {
     room.phase = "revenue"; room.actedThisPutaran = [];
   }
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/revenue
 router.post("/rooms/:code/revenue", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -612,10 +643,10 @@ router.post("/rooms/:code/revenue", (req, res) => {
   room.actedThisPutaran.push(playerId + "_rev");
   if (room.players.every(p => room.actedThisPutaran.includes(p.id + "_rev"))) { advanceRonde(room); }
   processBotTurns(room);
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/debt
 router.post("/rooms/:code/debt", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -638,10 +669,10 @@ router.post("/rooms/:code/debt", (req, res) => {
     player.kap.bersediaRisiko = Math.max(0, player.kap.bersediaRisiko - repayUnits);
     addTx(player, `Bayar Hutang ${repayUnits} tingkatan (-Rp.${repayRp})`, repayRp, "pengeluaran", room.currentRonde);
   }
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/end-game-sell
 router.post("/rooms/:code/end-game-sell", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -659,10 +690,10 @@ router.post("/rooms/:code/end-game-sell", (req, res) => {
     room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
     room.status = "finished"; room.phase = "finished";
   }
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/finish-early
 router.post("/rooms/:code/finish-early", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -670,10 +701,10 @@ router.post("/rooms/:code/finish-early", (req, res) => {
   if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
   room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
   room.status = "finished"; room.phase = "finished";
+  persist();
   res.json({ ok: true });
 });
 
-// POST /api/rooms/:code/facilitator-advance
 const PHASE_ORDER: GamePhase[] = ["cafe_setup","csr","operational","lembur_offer","customer_input","revenue","end_game_sell","finished"];
 router.post("/rooms/:code/facilitator-advance", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
@@ -685,10 +716,10 @@ router.post("/rooms/:code/facilitator-advance", (req, res) => {
   const next = PHASE_ORDER[idx + 1] ?? "finished";
   room.phase = next; room.actedThisPutaran = [];
   if (next === "finished") { room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); }); room.status = "finished"; }
+  persist();
   res.json({ ok: true, newPhase: next });
 });
 
-// POST /api/rooms/:code/facilitator-reset-turn
 router.post("/rooms/:code/facilitator-reset-turn", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -697,6 +728,7 @@ router.post("/rooms/:code/facilitator-reset-turn", (req, res) => {
   room.actedThisPutaran = [];
   room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
   room.players.forEach(p => { p.lastAction = null; });
+  persist();
   res.json({ ok: true });
 });
 
