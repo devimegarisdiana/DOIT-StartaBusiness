@@ -1,0 +1,21 @@
+kind = "api"
+title = "API Server"
+version = "1.0.0"
+id = "artifacts/api-server"
+
+[[services]]
+name = "api"
+paths = ["/api"]
+localPort = 8080
+
+[services.development]
+run = "pnpm --filter @workspace/api-server run dev"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+run = "pnpm --filter @workspace/api-server run start"
+
+[services.env]
+PORT = "8080"
+NODE_ENV = "development"
+BASE_PATH = ""
