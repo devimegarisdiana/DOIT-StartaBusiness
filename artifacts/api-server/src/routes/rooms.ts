@@ -24,6 +24,8 @@ interface PendingBid {
   cafeId: string; bidderId: string; cafeName: string; openPrice: number;
   responses: { playerId: string; accepted: boolean }[];
   status: "pending" | "accepted" | "rejected";
+  respondOrder: string[];       // player IDs in turn order (excl. bidder)
+  currentRespondIndex: number;  // index into respondOrder
 }
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
 interface Transaction { id: string; keterangan: string; jumlah: number; tipe: "pemasukan" | "pengeluaran"; waktu: string; ronde: number; }
@@ -212,7 +214,11 @@ function processBotTurns(room: Room) {
           room.currentPutaran = 2; room.actedThisPutaran = [];
           room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
           room.players.forEach(p => { p.lastAction = null; });
-        } else { room.phase = "lembur_offer"; room.actedThisPutaran = []; }
+        } else if (room.currentPutaran === 2) {
+          room.phase = "lembur_offer"; room.actedThisPutaran = [];
+        } else {
+          room.phase = "customer_input"; room.actedThisPutaran = [];
+        }
       }
       continue;
     }
@@ -332,6 +338,21 @@ router.post("/rooms/:code/join", (req, res) => {
   res.json({ playerId, code: room.code });
 });
 
+router.post("/rooms/:code/shuffle-order", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  if (room.status !== "waiting") { res.status(400).json({ error: "Game sudah dimulai" }); return; }
+  const { playerId } = req.body as { playerId: string };
+  if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host yang bisa mengacak urutan" }); return; }
+  // Fisher-Yates shuffle
+  for (let i = room.players.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [room.players[i], room.players[j]] = [room.players[j], room.players[i]];
+  }
+  persist();
+  res.json({ ok: true, order: room.players.map(p => p.name) });
+});
+
 router.post("/rooms/:code/start", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
@@ -383,20 +404,18 @@ router.post("/rooms/:code/csr", (req, res) => {
     const msg = room.phase === "cafe_setup" ? "Selesaikan setup cafe semua pemain terlebih dahulu" : "Bukan fase CSR";
     res.status(400).json({ error: msg }); return;
   }
-  const { playerId, amount } = req.body as { playerId: string; amount?: number | null };
+  const { playerId, amount, kapGain } = req.body as { playerId: string; amount?: number | null; kapGain?: number };
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
   if (player.csrPaidThisRound) { res.status(400).json({ error: "Sudah memilih CSR" }); return; }
   if (amount !== null && amount !== undefined) {
     const num = Number(amount);
-    let kapGain = 0;
-    if (num === 4) kapGain = 1;
-    else if (num === 7) kapGain = 2;
-    else { res.status(400).json({ error: "Jumlah harus Rp.4 atau Rp.7" }); return; }
-    if (player.money < num) { res.status(400).json({ error: "Uang tidak cukup" }); return; }
+    if (num < 0) { res.status(400).json({ error: "Jumlah tidak valid" }); return; }
+    if (num > 0 && player.money < num) { res.status(400).json({ error: "Uang tidak cukup" }); return; }
+    const kap = Math.max(0, Number(kapGain) || 0);
     player.money -= num;
-    player.csrKAP = (player.csrKAP || 0) + kapGain;
-    addTx(player, `CSR Ronde ${room.currentRonde}`, num, "pengeluaran", room.currentRonde);
+    player.csrKAP = (player.csrKAP || 0) + kap;
+    if (num > 0) addTx(player, `CSR Ronde ${room.currentRonde} (+${kap} KAP)`, num, "pengeluaran", room.currentRonde);
   }
   player.csrPaidThisRound = true;
   if (room.players.every(p => p.csrPaidThisRound)) {
@@ -415,12 +434,12 @@ router.post("/rooms/:code/action", (req, res) => {
   if (room.pendingBid?.status === "pending") { res.status(400).json({ error: "Ada bidding yang belum selesai" }); return; }
 
   const currentPlayer = room.players[room.currentTurnIndex];
-  const { playerId, action, cafeId, upgradeType, menuType, targetCafeId, area, bidType, expandSpecs, hutang } = req.body as {
+  const { playerId, action, cafeId, upgradeType, menuType, targetCafeId, area, bidType, expandSpecs, hutang, upgradeCost } = req.body as {
     playerId: string; action: ActionChoice;
     cafeId?: string; upgradeType?: UpgradeType; menuType?: MenuType; targetCafeId?: string;
     area?: BoardColor; bidType?: "open_bid" | "buyout"; bidPrice?: number;
     expandSpecs?: { area: BoardColor; bidPrice: number; menuItems: MenuItem[]; seats: number; name?: string };
-    hutang?: boolean;
+    hutang?: boolean; upgradeCost?: number;
   };
 
   if (!currentPlayer || currentPlayer.id !== playerId) { res.status(403).json({ error: "Bukan giliran kamu" }); return; }
@@ -432,6 +451,10 @@ router.post("/rooms/:code/action", (req, res) => {
   }
 
   if (action === "upgrade") {
+    const cost = Number(upgradeCost) || 0;
+    if (cost > 0 && currentPlayer.money < cost) {
+      res.status(400).json({ error: `Uang tidak cukup untuk biaya upgrade (Rp.${cost})` }); return;
+    }
     currentPlayer.kap.kreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
     const cafe = cafeId ? room.cafes.find(c => c.id === cafeId && c.ownerId === playerId) : null;
     if (!cafe) { res.status(400).json({ error: "Cafe tidak ditemukan atau bukan milikmu" }); return; }
@@ -458,6 +481,11 @@ router.post("/rooms/:code/action", (req, res) => {
       const destItem = targetCafe.menuItems.find(m => m.type === menuType);
       if (destItem) destItem.count += 1;
       else targetCafe.menuItems.push({ type: menuType, count: 1, price: cafe.menuItems.find(m=>m.type===menuType)?.price || { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
+    }
+    // Deduct upgrade cost and record transaction
+    if (cost > 0) {
+      currentPlayer.money -= cost;
+      addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
     }
   } else if (action === "social") {
     if (!area) { res.status(400).json({ error: "Pilih area" }); return; }
@@ -486,6 +514,9 @@ router.post("/rooms/:code/action", (req, res) => {
   } else if (action === "expand") {
     if (!expandSpecs) { res.status(400).json({ error: "Input spesifikasi cafe terlebih dahulu" }); return; }
     if (!bidType) { res.status(400).json({ error: "Pilih tipe pembelian" }); return; }
+    if (expandSpecs.area === currentPlayer.boardColor) {
+      res.status(400).json({ error: "Expand hanya boleh di luar area milikmu. Pilih area warna lain." }); return;
+    }
     const targetArea = expandSpecs.area;
     const cafesInArea = room.cafes.filter(c => c.area === targetArea && c.ownerId !== null);
     if (cafesInArea.length >= 4) { res.status(400).json({ error: "Area sudah penuh (max 4 cafe)" }); return; }
@@ -515,7 +546,17 @@ router.post("/rooms/:code/action", (req, res) => {
         emptySlot.ownerId = playerId; emptySlot.isSetup = true;
         addTx(currentPlayer, `Open Bid berhasil: ${emptySlot.name}`, oPrice, "pengeluaran", room.currentRonde);
       } else {
-        room.pendingBid = { cafeId: emptySlot.id, bidderId: playerId, cafeName: emptySlot.name, openPrice: oPrice, responses: [], status: "pending" };
+        // Build respond order in turn order starting from player after bidder
+        const bidderTurnIdx = room.players.findIndex(p => p.id === playerId);
+        const respondOrder: string[] = [];
+        for (let i = 1; i < room.players.length; i++) {
+          respondOrder.push(room.players[(bidderTurnIdx + i) % room.players.length].id);
+        }
+        room.pendingBid = {
+          cafeId: emptySlot.id, bidderId: playerId, cafeName: emptySlot.name,
+          openPrice: oPrice, responses: [], status: "pending",
+          respondOrder, currentRespondIndex: 0,
+        };
         currentPlayer.lastAction = action;
         persist();
         res.json({ ok: true, pendingBid: true }); return;
@@ -533,7 +574,12 @@ router.post("/rooms/:code/action", (req, res) => {
       room.currentPutaran = 2; room.actedThisPutaran = [];
       room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
       room.players.forEach(p => { p.lastAction = null; });
-    } else { room.phase = "lembur_offer"; room.actedThisPutaran = []; }
+    } else if (room.currentPutaran === 2) {
+      room.phase = "lembur_offer"; room.actedThisPutaran = [];
+    } else {
+      // putaran 3 (aksi lembur) → langsung ke input pelanggan
+      room.phase = "customer_input"; room.actedThisPutaran = [];
+    }
   }
   processBotTurns(room);
   persist();
@@ -546,16 +592,23 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
   if (!room.pendingBid || room.pendingBid.status !== "pending") { res.status(400).json({ error: "Tidak ada bidding aktif" }); return; }
   const { playerId, accepted } = req.body as { playerId: string; accepted: boolean };
   if (room.pendingBid.bidderId === playerId) { res.status(400).json({ error: "Kamu adalah bidder" }); return; }
-  if (room.pendingBid.responses.some(r => r.playerId === playerId)) { res.status(400).json({ error: "Sudah merespons" }); return; }
-  room.pendingBid.responses.push({ playerId, accepted });
+  const bid = room.pendingBid;
+  // Sequential bidding: only current expected responder can respond
+  const expectedResponder = bid.respondOrder[bid.currentRespondIndex];
+  if (playerId !== expectedResponder) {
+    const name = room.players.find(p => p.id === expectedResponder)?.name || "pemain lain";
+    res.status(400).json({ error: `Belum giliranmu merespons. Menunggu ${name}` }); return;
+  }
+  if (bid.responses.some(r => r.playerId === playerId)) { res.status(400).json({ error: "Sudah merespons" }); return; }
+  bid.responses.push({ playerId, accepted });
+  bid.currentRespondIndex++;
 
-  const nonBidders = room.players.filter(p => p.id !== room.pendingBid!.bidderId);
-  const allResponded = nonBidders.every(p => room.pendingBid!.responses.some(r => r.playerId === p.id));
+  const allResponded = bid.currentRespondIndex >= bid.respondOrder.length;
 
   if (allResponded) {
-    const bid = room.pendingBid!;
     const acceptCount = bid.responses.filter(r => r.accepted).length;
-    const majority = nonBidders.length === 0 || acceptCount > nonBidders.length / 2;
+    const nonBidderCount = bid.respondOrder.length;
+    const majority = nonBidderCount === 0 || acceptCount > nonBidderCount / 2;
     const cafe = room.cafes.find(c => c.id === bid.cafeId)!;
     const bidder = room.players.find(p => p.id === bid.bidderId)!;
     if (majority) {
@@ -575,13 +628,14 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
     const actedCount = room.actedThisPutaran.filter(x=>!x.includes("_")).length;
     if (actedCount >= room.players.length) {
       if (room.currentPutaran === 1) { room.currentPutaran=2; room.actedThisPutaran=[]; room.currentTurnIndex=(room.currentRonde-1)%room.players.length; room.players.forEach(p=>{p.lastAction=null;}); }
-      else { room.phase="lembur_offer"; room.actedThisPutaran=[]; }
+      else if (room.currentPutaran === 2) { room.phase="lembur_offer"; room.actedThisPutaran=[]; }
+      else { room.phase="customer_input"; room.actedThisPutaran=[]; }
     }
     setTimeout(() => { if (room.pendingBid?.status !== "pending") room.pendingBid = null; persist(); }, 5000);
     processBotTurns(room);
     persist();
   }
-  res.json({ ok: true, status: room.pendingBid?.status || "pending" });
+  res.json({ ok: true, status: room.pendingBid?.status || "pending", currentRespondIndex: bid.currentRespondIndex, respondOrder: bid.respondOrder });
 });
 
 router.post("/rooms/:code/lembur", (req, res) => {

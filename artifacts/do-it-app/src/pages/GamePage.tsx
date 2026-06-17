@@ -23,6 +23,8 @@ interface PendingBid {
   cafeId: string; bidderId: string; cafeName: string; openPrice: number;
   responses: { playerId: string; accepted: boolean }[];
   status: "pending" | "accepted" | "rejected";
+  respondOrder: string[];
+  currentRespondIndex: number;
 }
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
 interface Transaction { id: string; keterangan: string; jumlah: number; tipe: "pemasukan" | "pengeluaran"; waktu: string; ronde: number; }
@@ -185,6 +187,9 @@ export default function GamePage() {
   const [expandSeats, setExpandSeats] = useState("2");
   const [expandCafeName, setExpandCafeName] = useState("");
   const [expandOpenBid, setExpandOpenBid] = useState("");
+  const [upgradeCost, setUpgradeCost] = useState("");
+  const [csrManualAmount, setCsrManualAmount] = useState("");
+  const [csrManualKap, setCsrManualKap] = useState("");
 
   // Revenue form
   const [pendapatan, setPendapatan] = useState("");
@@ -267,6 +272,7 @@ export default function GamePage() {
       pollingRef.current = setInterval(()=>pollRoom(room.code), 8000);
       return ()=>{ if (pollingRef.current) clearInterval(pollingRef.current); };
     }
+    return undefined;
   }, [appPhase, room?.code, pollRoom]);
 
   async function post(path: string, body: object) {
@@ -329,7 +335,23 @@ export default function GamePage() {
       await post("/action",body);
       setActionStep(null); setPendingHutangAction(null);
       setExpandBidPrice(""); setExpandMenuItems([]); setExpandSeats("2"); setExpandCafeName(""); setExpandOpenBid("");
+      setUpgradeCost("");
     } catch(e:unknown){ setErr(e instanceof Error?e.message:"Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleShuffle() {
+    if (!room) return;
+    setLoading(true); setErr("");
+    try {
+      const res = await fetch(`${API}/rooms/${room.code}/shuffle-order`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ playerId:myId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return setErr(data.error);
+      await pollRoom(room.code, true);
+    } catch { setErr("Gagal mengacak urutan"); }
     finally { setLoading(false); }
   }
 
@@ -529,6 +551,11 @@ export default function GamePage() {
           </div>
           {isHost?(
             <div className="flex flex-col gap-2">
+              <button onClick={handleShuffle} disabled={loading}
+                className="w-full py-3 rounded-2xl font-black text-sm disabled:opacity-50 active:scale-95 border-2"
+                style={{ background:"#eff6ff", color:"#1d4ed8", borderColor:"#bfdbfe" }}>
+                🔀 Acak Urutan Pemain
+              </button>
               <button onClick={()=>handleStart(false)} disabled={loading||room.players.length<2}
                 className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
                 style={{ background:room.players.length>=2?"linear-gradient(135deg,#28a745,#20c058)":"#ccc" }}>
@@ -693,28 +720,48 @@ export default function GamePage() {
           {err&&<div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
 
           {/* ── PENDING BID ── */}
-          {pendingBid?.status==="pending"&&!isBidder&&!myBidResponse&&(
-            <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-purple-200">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-2xl">🏪</span>
-                <div><h3 className="font-black text-purple-700 text-sm">Penawaran Expand!</h3>
-                  <p className="text-xs text-gray-500">{room.players.find(p=>p.id===pendingBid.bidderId)?.name} ingin membeli <strong>{pendingBid.cafeName}</strong></p></div>
+          {pendingBid?.status==="pending"&&!isBidder&&(()=>{
+            const isMyTurn = pendingBid.respondOrder?.[pendingBid.currentRespondIndex??0] === myId;
+            const alreadyResponded = pendingBid.responses.some(r=>r.playerId===myId);
+            const currentResponder = room.players.find(p=>p.id===pendingBid.respondOrder?.[pendingBid.currentRespondIndex??0])?.name ?? "pemain lain";
+            return (
+              <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-purple-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🏪</span>
+                  <div><h3 className="font-black text-purple-700 text-sm">Penawaran Expand!</h3>
+                    <p className="text-xs text-gray-500">{room.players.find(p=>p.id===pendingBid.bidderId)?.name} ingin membeli <strong>{pendingBid.cafeName}</strong></p></div>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-3 mb-3 text-center">
+                  <div className="text-xs text-gray-400 mb-0.5">Harga Penawaran</div>
+                  <div className="font-black text-xl text-purple-700">{formatRp(pendingBid.openPrice)}</div>
+                </div>
+                {isMyTurn&&!alreadyResponded?(
+                  <>
+                    <p className="text-[10px] font-bold text-purple-500 text-center mb-2 uppercase tracking-widest">Giliran kamu merespons!</p>
+                    <div className="flex gap-2">
+                      <button onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{accepted:false})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}} disabled={loading} className="flex-1 py-3 rounded-xl font-black text-sm bg-red-50 text-red-600 border border-red-200">✕ Tolak</button>
+                      <button onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{accepted:true})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}} disabled={loading} className="flex-1 py-3 rounded-xl font-black text-sm text-white" style={{ background:"#9b59b6" }}>✓ Setuju</button>
+                    </div>
+                  </>
+                ):(
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <div className="text-lg mb-1 animate-pulse">⏳</div>
+                    <p className="text-xs font-bold text-gray-500">
+                      {alreadyResponded ? `Sudah merespons. Menunggu ${currentResponder}...` : `Menunggu giliran ${currentResponder} merespons...`}
+                    </p>
+                    <div className="flex gap-1 justify-center flex-wrap mt-2">
+                      {pendingBid.respondOrder?.map((pid,i)=>{
+                        const pname=room.players.find(p=>p.id===pid)?.name??"?";
+                        const resp=pendingBid.responses.find(r=>r.playerId===pid);
+                        const isCurrent=i===(pendingBid.currentRespondIndex??0);
+                        return <span key={pid} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${resp?resp.accepted?"bg-green-100 text-green-600":"bg-red-100 text-red-600":isCurrent?"bg-purple-100 text-purple-600":"bg-gray-100 text-gray-400"}`}>{pname} {resp?resp.accepted?"✓":"✕":isCurrent?"▶":"⏳"}</span>;
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="bg-purple-50 rounded-xl p-3 mb-3 text-center">
-                <div className="text-xs text-gray-400 mb-0.5">Harga Penawaran</div>
-                <div className="font-black text-xl text-purple-700">{formatRp(pendingBid.openPrice)}</div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={async()=>{setLoading(true);try{await post("/bid-respond",{accepted:false})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}} disabled={loading} className="flex-1 py-3 rounded-xl font-black text-sm bg-red-50 text-red-600 border border-red-200">✕ Tolak</button>
-                <button onClick={async()=>{setLoading(true);try{await post("/bid-respond",{accepted:true})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}} disabled={loading} className="flex-1 py-3 rounded-xl font-black text-sm text-white" style={{ background:"#9b59b6" }}>✓ Setuju</button>
-              </div>
-            </div>
-          )}
-          {pendingBid?.status==="pending"&&!isBidder&&myBidResponse&&(
-            <div className="bg-purple-50 rounded-2xl p-3 text-center border border-purple-200">
-              <span className="text-sm font-bold text-purple-600">Menunggu respons pemain lain untuk bid <strong>{pendingBid.cafeName}</strong>...</span>
-            </div>
-          )}
+            );
+          })()}
           {pendingBid&&pendingBid.status!=="pending"&&(
             <div className={`rounded-2xl p-3 text-center ${pendingBid.status==="accepted"?"bg-green-50 border border-green-200":"bg-red-50 border border-red-200"}`}>
               <span className={`text-sm font-bold ${pendingBid.status==="accepted"?"text-green-600":"text-red-600"}`}>
@@ -801,14 +848,42 @@ export default function GamePage() {
                 </div>
               ):(
                 <div className="flex flex-col gap-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Preset Kartu KAP</p>
                   {[{amount:4,kap:1,color:"#2478d4"},{amount:7,kap:2,color:"#9b59b6"}].map(opt=>(
-                    <button key={opt.amount} onClick={async()=>{setLoading(true);setErr("");try{await post("/csr",{amount:opt.amount})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
+                    <button key={opt.amount} onClick={async()=>{setLoading(true);setErr("");try{await post("/csr",{amount:opt.amount,kapGain:opt.kap})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
                       disabled={loading||myPlayer.money<opt.amount}
                       className="w-full py-3 rounded-xl font-black text-sm text-white disabled:opacity-40 active:scale-95"
                       style={{ background:opt.color }}>
                       Bayar Rp.{opt.amount} → +{opt.kap} KAP{myPlayer.money<opt.amount?" (uang kurang)":""}
                     </button>
                   ))}
+                  <div className="border-t border-gray-100 pt-3 mt-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Input Manual (sesuai kartu KAP fisik)</p>
+                    <div className="flex gap-2 mb-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-500 font-bold">Bayar (Rp.)</label>
+                        <input type="number" min="0" value={csrManualAmount} onChange={e=>setCsrManualAmount(e.target.value)}
+                          placeholder="0" className="w-full mt-0.5 px-3 py-2 rounded-xl border-2 border-gray-200 text-sm font-bold focus:border-blue-400 outline-none"/>
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-500 font-bold">Dapat KAP</label>
+                        <input type="number" min="0" value={csrManualKap} onChange={e=>setCsrManualKap(e.target.value)}
+                          placeholder="0" className="w-full mt-0.5 px-3 py-2 rounded-xl border-2 border-gray-200 text-sm font-bold focus:border-purple-400 outline-none"/>
+                      </div>
+                    </div>
+                    <button onClick={async()=>{
+                      const amt=parseFloat(csrManualAmount)||0;
+                      const kap=parseFloat(csrManualKap)||0;
+                      setLoading(true);setErr("");
+                      try{await post("/csr",{amount:amt,kapGain:kap});}
+                      catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
+                      finally{setLoading(false);setCsrManualAmount("");setCsrManualKap("");}
+                    }} disabled={loading||(!csrManualAmount&&!csrManualKap)}
+                      className="w-full py-2.5 rounded-xl font-black text-sm disabled:opacity-40 active:scale-95"
+                      style={{ background:"#1a3a6b", color:"white" }}>
+                      ✓ Bayar Manual Rp.{csrManualAmount||0} → +{csrManualKap||0} KAP
+                    </button>
+                  </div>
                   <button onClick={async()=>{setLoading(true);setErr("");try{await post("/csr",{amount:null})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
                     disabled={loading} className="w-full py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-500">
                     Skip CSR (tidak bayar)
@@ -834,7 +909,11 @@ export default function GamePage() {
                           {action:"social" as const,icon:"🤝",label:"Social",color:"#f0fdf4",border:"#bbf7d0",text:"#15803d",desc:`Social Networking ${myPlayer.kap.socialNetworking}→${Math.min(7,myPlayer.kap.socialNetworking+1)}. Bayar Rp.${myPlayer.kap.socialNetworking+1}, tambah pelanggan.`},
                           {action:"expand" as const,icon:"🏪",label:"Expand",color:"#faf5ff",border:"#e9d5ff",text:"#7e22ce",desc:`Locus of Control ${myPlayer.kap.internalLocus}→${Math.min(7,myPlayer.kap.internalLocus+1)}. Beli cafe via bidding atau buy out.`},
                         ].map(opt=>(
-                          <button key={opt.action} onClick={()=>setActionStep({action:opt.action,step:opt.action==="upgrade"?"select_cafe":opt.action==="social"?"select_area":"select_area"})}
+                          <button key={opt.action} onClick={()=>{
+                            if(opt.action==="upgrade") setActionStep({action:"upgrade",step:"select_cafe"});
+                            else if(opt.action==="social") setActionStep({action:"social",step:"select_area"});
+                            else setActionStep({action:"expand",step:"select_area"});
+                          }}
                             className="w-full p-3.5 rounded-xl text-left flex items-center gap-3 active:scale-95 border-2"
                             style={{ background:opt.color, borderColor:opt.border }}>
                             <span className="text-2xl">{opt.icon}</span>
@@ -873,6 +952,14 @@ export default function GamePage() {
                   {actionStep?.action==="upgrade"&&actionStep.step==="select_type"&&(
                     <div className="bg-white rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-3"><button onClick={()=>setActionStep({action:"upgrade",step:"select_cafe"})} className="text-gray-400 text-xl">‹</button><h3 className="font-black text-blue-700 text-base">⬆️ {actionStep.cafeName}</h3></div>
+                      <div className="mb-3">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Biaya Upgrade (dari papan)</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-gray-500 text-sm">Rp</span>
+                          <input type="number" min="0" value={upgradeCost} onChange={e=>setUpgradeCost(e.target.value)} placeholder="0"
+                            className="flex-1 border-2 border-blue-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-blue-400"/>
+                        </div>
+                      </div>
                       <div className="flex flex-col gap-2">
                         {[
                           {type:"add_menu" as const,icon:"🍽",label:"Tambah Menu",desc:"Tambah item menu baru"},
@@ -881,7 +968,7 @@ export default function GamePage() {
                           {type:"move" as const,icon:"↔️",label:"Pindahkan Menu",desc:"Pindahkan menu ke cafe lain milikmu"},
                         ].map(opt=>(
                           <button key={opt.type} onClick={()=>{
-                            if(opt.type==="add_seats"){submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"add_seats"});}
+                            if(opt.type==="add_seats"){submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"add_seats",upgradeCost:parseFloat(upgradeCost)||0});}
                             else setActionStep({action:"upgrade",step:"select_menu",cafeId:actionStep.cafeId,upgradeType:opt.type,cafeName:actionStep.cafeName});
                           }} className="p-3 rounded-xl flex items-center gap-3 border-2 border-blue-100 active:scale-95 bg-blue-50">
                             <span className="text-2xl">{opt.icon}</span>
@@ -895,7 +982,7 @@ export default function GamePage() {
                   {actionStep?.action==="upgrade"&&actionStep.step==="select_menu"&&(
                     <div className="bg-white rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-3"><button onClick={()=>setActionStep({action:"upgrade",step:"select_type",cafeId:actionStep.cafeId,cafeName:actionStep.cafeName})} className="text-gray-400 text-xl">‹</button>
-                        <h3 className="font-black text-blue-700 text-base">{{add_menu:"Pilih Menu Baru",raise_price:"Naikkan Harga",move:"Pilih Menu (Pindah)"}[actionStep.upgradeType]}</h3></div>
+                        <h3 className="font-black text-blue-700 text-base">{{add_menu:"Pilih Menu Baru",raise_price:"Naikkan Harga",move:"Pilih Menu (Pindah)",add_seats:"Tambah Kursi"}[actionStep.upgradeType]}</h3></div>
                       <div className="grid grid-cols-2 gap-2">
                         {MENU_TYPES.map(mt=>{
                           const info=MENU_INFO[mt];
@@ -906,7 +993,7 @@ export default function GamePage() {
                             <button key={mt} disabled={!!disabled}
                               onClick={()=>{
                                 if(actionStep.upgradeType==="move")setActionStep({action:"upgrade",step:"select_move_target",cafeId:actionStep.cafeId,menuType:mt});
-                                else submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:actionStep.upgradeType,menuType:mt});
+                                else submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:actionStep.upgradeType,menuType:mt,upgradeCost:parseFloat(upgradeCost)||0});
                               }}
                               className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 border-blue-100 active:scale-95 disabled:opacity-30"
                               style={{ background:disabled?"#f5f5f5":"#eff6ff" }}>
@@ -927,7 +1014,7 @@ export default function GamePage() {
                           {myCafes.filter(c=>c.id!==actionStep.cafeId).map(c=>{
                             const cbc=bcInfo(c.area);
                             return (
-                              <button key={c.id} onClick={()=>submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"move",menuType:actionStep.menuType,targetCafeId:c.id})}
+                              <button key={c.id} onClick={()=>submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"move",menuType:actionStep.menuType,targetCafeId:c.id,upgradeCost:parseFloat(upgradeCost)||0})}
                                 className="p-3 rounded-xl flex items-center gap-3 border-2 active:scale-95" style={{ background:cbc.bg, borderColor:cbc.text+"40" }}>
                                 <span className="text-2xl">{cbc.emoji}</span>
                                 <div className="flex-1 text-left">
@@ -1004,14 +1091,15 @@ export default function GamePage() {
                           const slotsInArea=allCafes.filter(ca=>ca.area===c.value&&ca.slotIndex>1&&ca.ownerId===null);
                           const occupied=allCafes.filter(ca=>ca.area===c.value&&ca.ownerId!==null).length;
                           const available=slotsInArea.length;
+                          const isOwnArea = c.value === myPlayer.boardColor;
                           return (
-                            <button key={c.value} disabled={available===0}
+                            <button key={c.value} disabled={available===0||isOwnArea}
                               onClick={()=>{setActionStep({action:"expand",step:"input_specs",targetArea:c.value});setExpandBidPrice("");setExpandMenuItems([]);setExpandSeats("2");setExpandCafeName("");setExpandOpenBid("");}}
                               className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 active:scale-95 disabled:opacity-40"
                               style={{ background:c.bg, borderColor:c.text }}>
                               <span className="text-2xl">{c.emoji}</span>
                               <span className="font-black text-xs" style={{ color:c.text }}>{c.label}</span>
-                              <span className="text-[10px] text-gray-500">{available} lahan kosong · {occupied} cafe</span>
+                              <span className="text-[10px] text-gray-500">{isOwnArea?"⛔ Area sendiri":`${available} lahan kosong · ${occupied} cafe`}</span>
                             </button>
                           );
                         })}
