@@ -369,6 +369,8 @@ router.post("/rooms", (req, res) => {
 router.get("/rooms/:code", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  // Clear stale "sold" pendingBid (e.g. after server restart where setTimeout was lost)
+  if (room.pendingBid?.status === "sold") { room.pendingBid = null; persist(); }
   res.json({
     ...room,
     players: room.players.map(p => ({
@@ -716,7 +718,7 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
       else if (r.currentPutaran === 2) { r.phase="lembur_offer"; r.actedThisPutaran=[]; }
       else { r.phase="customer_input"; r.actedThisPutaran=[]; }
     }
-    setTimeout(() => { if (r.pendingBid?.status !== "pending") r.pendingBid = null; persist(); }, 5000);
+    setTimeout(() => { if (r.pendingBid?.status !== "pending") { r.pendingBid = null; persist(); } }, 2000);
     processBotTurns(r);
     persist();
   }

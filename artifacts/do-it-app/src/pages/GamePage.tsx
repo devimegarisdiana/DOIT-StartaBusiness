@@ -624,9 +624,10 @@ export default function GamePage() {
     const myCafes=room.cafes.filter(c=>c.ownerId===myId);
     const bc=bcInfo(myPlayer.boardColor);
     const pendingBid=room.pendingBid;
+    const bidIsPending=pendingBid?.status==="pending";  // hanya true saat lelang sedang berlangsung
     const isExpander=pendingBid?.expanderId===myId;
-    const amActive=pendingBid?.status==="pending"&&(pendingBid.activePlayers.includes(myId)??false);
-    const isMyBidTurn=pendingBid?.status==="pending"&&pendingBid.currentTurnPlayerId===myId;
+    const amActive=bidIsPending&&(pendingBid!.activePlayers.includes(myId)??false);
+    const isMyBidTurn=bidIsPending&&pendingBid!.currentTurnPlayerId===myId;
     const PHASE_LABELS: Record<string,string> = { cafe_setup:"Setup Cafe",csr:"CSR",operational:"Aksi",lembur_offer:"Lembur",customer_input:"Pelanggan",revenue:"Pendapatan",end_game_sell:"Jual Cafe",finished:"Selesai" };
     const isHost=room.hostId===myId;
 
@@ -964,7 +965,7 @@ export default function GamePage() {
           {/* ── OPERATIONAL ── */}
           {room.phase==="operational"&&(
             <>
-              {isMyTurn&&!myActedAction&&!pendingBid?(
+              {isMyTurn&&!myActedAction&&!bidIsPending?(
                 <>
                   {/* Choose action */}
                   {actionStep===null&&(
