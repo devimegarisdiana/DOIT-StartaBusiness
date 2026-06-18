@@ -1591,32 +1591,47 @@ export default function GamePage() {
                 {(()=>{
                   const myMedals=myPlayer.medals??[];
                   if(myMedals.length===0) return null;
-                  const MEDAL_INFO: Record<MenuType,{emoji:string;label:string;bg:string;border:string;color:string}> = {
-                    kopi:      {emoji:"☕",label:"Best Kopi",      bg:"#fef3c7",border:"#fde68a",color:"#92400e"},
-                    teh:       {emoji:"🍵",label:"Best Teh",       bg:"#d1fae5",border:"#a7f3d0",color:"#065f46"},
-                    kue:       {emoji:"🍰",label:"Best Kue",       bg:"#fce7f3",border:"#fbcfe8",color:"#9d174d"},
-                    croissant: {emoji:"🥐",label:"Best Croissant", bg:"#ffedd5",border:"#fed7aa",color:"#9a3412"},
+                  type MedalMeta = {emoji:string;icon:string;label:string;sublabel:string;grad:string;border:string;color:string;shine:string};
+                  const MEDAL_INFO: Record<MenuType,MedalMeta> = {
+                    kopi:      {emoji:"☕",icon:"⭐",label:"Best Kopi",      sublabel:"Raja Kopi Terbaik",  grad:"linear-gradient(135deg,#fef9c3,#fde68a,#fbbf24)",border:"#f59e0b",color:"#78350f",shine:"#fffde7"},
+                    teh:       {emoji:"🍵",icon:"🌿",label:"Best Teh",       sublabel:"Peracik Teh Terbaik",grad:"linear-gradient(135deg,#d1fae5,#6ee7b7,#34d399)",border:"#10b981",color:"#064e3b",shine:"#ecfdf5"},
+                    kue:       {emoji:"🍰",icon:"✨",label:"Best Kue",       sublabel:"Pembuat Kue Terbaik",grad:"linear-gradient(135deg,#fae8ff,#e879f9,#d946ef)",border:"#c026d3",color:"#4a044e",shine:"#fdf4ff"},
+                    croissant: {emoji:"🥐",icon:"🌟",label:"Best Croissant", sublabel:"Master Croissant",   grad:"linear-gradient(135deg,#ffedd5,#fdba74,#fb923c)",border:"#ea580c",color:"#7c2d12",shine:"#fff7ed"},
                   };
                   return (
-                    <div className="mb-4">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🏅 Penghargaan yang Diraih</p>
-                      <div className="flex flex-col gap-2">
+                    <div className="mb-5">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">🏅 Penghargaan yang Diraih</p>
+                      <div className="flex flex-col gap-3">
                         {myMedals.map(m=>{
                           const mi=MEDAL_INFO[m];
                           return (
-                            <div key={m} className="flex items-center gap-3 rounded-xl px-3 py-2.5 border" style={{ background:mi.bg,borderColor:mi.border }}>
-                              <span className="text-2xl">{mi.emoji}</span>
-                              <div>
-                                <div className="text-xs font-black" style={{ color:mi.color }}>{mi.label}</div>
-                                <div className="text-[10px]" style={{ color:mi.color }}>+1 poin KAP Bonus</div>
+                            <div key={m} className="relative overflow-hidden rounded-2xl border-2 shadow-sm" style={{ background:mi.grad,borderColor:mi.border }}>
+                              {/* shine strip */}
+                              <div className="absolute inset-0 opacity-30 rounded-2xl" style={{ background:`linear-gradient(120deg,transparent 30%,${mi.shine} 50%,transparent 70%)` }}/>
+                              <div className="relative flex items-center gap-3 px-4 py-3">
+                                <div className="flex flex-col items-center justify-center w-12 h-12 rounded-xl shadow-inner text-3xl shrink-0" style={{ background:"rgba(255,255,255,0.45)" }}>
+                                  {mi.emoji}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-1 mb-0.5">
+                                    <span className="text-sm font-black" style={{ color:mi.color }}>{mi.label}</span>
+                                    <span className="text-base">{mi.icon}</span>
+                                  </div>
+                                  <div className="text-[10px] font-bold opacity-80" style={{ color:mi.color }}>{mi.sublabel}</div>
+                                </div>
+                                <div className="flex flex-col items-center shrink-0">
+                                  <span className="text-2xl">🏅</span>
+                                  <span className="text-[9px] font-black mt-0.5 px-1.5 py-0.5 rounded-full" style={{ background:"rgba(255,255,255,0.55)",color:mi.color }}>+1 KAP</span>
+                                </div>
                               </div>
-                              <span className="ml-auto text-lg">🏅</span>
                             </div>
                           );
                         })}
                       </div>
-                      <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-[11px] text-amber-700 font-bold text-center">
-                        Total bonus KAP dari medali: +{myMedals.length} poin
+                      <div className="mt-3 flex items-center justify-center gap-2 rounded-xl px-3 py-2.5" style={{ background:"linear-gradient(135deg,#fef3c7,#fde68a)",border:"1px solid #fbbf24" }}>
+                        <span className="text-lg">🏆</span>
+                        <span className="text-xs font-black text-amber-800">Bonus KAP dari {myMedals.length} Medali: <span className="text-base">+{myMedals.length}</span> poin</span>
+                        <span className="text-lg">🏆</span>
                       </div>
                     </div>
                   );
@@ -1700,11 +1715,11 @@ export default function GamePage() {
 
           {/* Leaderboard */}
           {(()=>{
-            const MEDAL_INFO: Record<MenuType,{emoji:string;label:string;bg:string;color:string}> = {
-              kopi:      {emoji:"☕",label:"Best Kopi",      bg:"#fef3c7",color:"#92400e"},
-              teh:       {emoji:"🍵",label:"Best Teh",       bg:"#d1fae5",color:"#065f46"},
-              kue:       {emoji:"🍰",label:"Best Kue",       bg:"#fce7f3",color:"#9d174d"},
-              croissant: {emoji:"🥐",label:"Best Croissant", bg:"#ffedd5",color:"#9a3412"},
+            const MEDAL_INFO: Record<MenuType,{emoji:string;icon:string;label:string;bg:string;border:string;color:string;grad:string}> = {
+              kopi:      {emoji:"☕",icon:"⭐",label:"Best Kopi",      bg:"#fffbeb",border:"#fcd34d",color:"#92400e",grad:"linear-gradient(135deg,#fef3c7,#fde68a)"},
+              teh:       {emoji:"🍵",icon:"🌟",label:"Best Teh",       bg:"#ecfdf5",border:"#6ee7b7",color:"#065f46",grad:"linear-gradient(135deg,#d1fae5,#a7f3d0)"},
+              kue:       {emoji:"🍰",icon:"✨",label:"Best Kue",       bg:"#fdf2f8",border:"#f0abfc",color:"#86198f",grad:"linear-gradient(135deg,#fae8ff,#e879f9)"},
+              croissant: {emoji:"🥐",icon:"🌠",label:"Best Croissant", bg:"#fff7ed",border:"#fdba74",color:"#9a3412",grad:"linear-gradient(135deg,#ffedd5,#fed7aa)"},
             };
             return (
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -1718,19 +1733,24 @@ export default function GamePage() {
                       <span className="text-xl mt-0.5">{pbc.emoji}</span>
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-gray-800 text-sm truncate">{p.id===myId?`${p.name} (Kamu)`:p.name}</div>
-                        <div className="text-[10px] mb-1" style={{ color:pbc.text }}>{pbc.label}</div>
+                        <div className="text-[10px] mb-1.5" style={{ color:pbc.text }}>{pbc.label}</div>
                         {pMedals.length>0&&(
                           <div className="flex flex-wrap gap-1">
                             {pMedals.map(m=>{
                               const mi=MEDAL_INFO[m];
-                              return <span key={m} className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background:mi.bg,color:mi.color }}>{mi.emoji} {mi.label}</span>;
+                              return (
+                                <span key={m} className="inline-flex items-center gap-0.5 text-[10px] font-black px-2 py-0.5 rounded-full border"
+                                  style={{ background:mi.grad,borderColor:mi.border,color:mi.color }}>
+                                  {mi.emoji} {mi.label} {mi.icon}
+                                </span>
+                              );
                             })}
                           </div>
                         )}
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-black text-lg" style={{ color:"#1a3a6b" }}>{p.kapScore}</div>
-                        {pMedals.length>0&&<div className="text-[10px] text-amber-600 font-bold">+{pMedals.length} medali</div>}
+                        {pMedals.length>0&&<div className="text-[10px] font-black text-amber-500">🏅×{pMedals.length}</div>}
                         <div className="text-[10px] text-gray-400">{formatRp(p.money)}</div>
                       </div>
                     </div>
