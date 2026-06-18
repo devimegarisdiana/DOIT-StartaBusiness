@@ -33,7 +33,8 @@ interface Player {
   money: number; hutang: number; kap: KAP; kapScore: number;
   transactions: Transaction[]; lastAction: ActionChoice | null;
   csrPaidThisRound: boolean; lemburThisRound: boolean;
-  areaLevels: PlayerAreaLevel[]; cafeSetupDone: boolean; cafesSold: boolean; finalKAP?: number;
+  areaLevels: PlayerAreaLevel[]; cafeSetupDone: boolean; cafesSold: boolean;
+  medals?: MenuType[]; medalKAP?: number; finalKAP?: number;
 }
 interface Room {
   code: string; hostId: string; players: Player[];
@@ -1586,6 +1587,41 @@ export default function GamePage() {
                   })}
                 </div>
 
+                {/* Medals */}
+                {(()=>{
+                  const myMedals=myPlayer.medals??[];
+                  if(myMedals.length===0) return null;
+                  const MEDAL_INFO: Record<MenuType,{emoji:string;label:string;bg:string;border:string;color:string}> = {
+                    kopi:      {emoji:"☕",label:"Best Kopi",      bg:"#fef3c7",border:"#fde68a",color:"#92400e"},
+                    teh:       {emoji:"🍵",label:"Best Teh",       bg:"#d1fae5",border:"#a7f3d0",color:"#065f46"},
+                    kue:       {emoji:"🍰",label:"Best Kue",       bg:"#fce7f3",border:"#fbcfe8",color:"#9d174d"},
+                    croissant: {emoji:"🥐",label:"Best Croissant", bg:"#ffedd5",border:"#fed7aa",color:"#9a3412"},
+                  };
+                  return (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🏅 Penghargaan yang Diraih</p>
+                      <div className="flex flex-col gap-2">
+                        {myMedals.map(m=>{
+                          const mi=MEDAL_INFO[m];
+                          return (
+                            <div key={m} className="flex items-center gap-3 rounded-xl px-3 py-2.5 border" style={{ background:mi.bg,borderColor:mi.border }}>
+                              <span className="text-2xl">{mi.emoji}</span>
+                              <div>
+                                <div className="text-xs font-black" style={{ color:mi.color }}>{mi.label}</div>
+                                <div className="text-[10px]" style={{ color:mi.color }}>+1 poin KAP Bonus</div>
+                              </div>
+                              <span className="ml-auto text-lg">🏅</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-[11px] text-amber-700 font-bold text-center">
+                        Total bonus KAP dari medali: +{myMedals.length} poin
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Behavioral highlights */}
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sorotan Keputusan Sepanjang Permainan</p>
                 <div className="flex flex-col gap-2">
@@ -1663,26 +1699,46 @@ export default function GamePage() {
           </div>
 
           {/* Leaderboard */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-4 py-2.5 border-b border-gray-100"><h3 className="font-black text-gray-700 text-sm">🏆 Papan KAP</h3></div>
-            {[...room.players].sort((a,b)=>b.kapScore-a.kapScore).map((p,i)=>{
-              const pbc=bcInfo(p.boardColor);
-              return (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
-                  <span className="text-base w-5">{["🥇","🥈","🥉","4️⃣"][i]}</span>
-                  <span className="text-xl">{pbc.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-800 text-sm truncate">{p.id===myId?`${p.name} (Kamu)`:p.name}</div>
-                    <div className="text-[10px]" style={{ color:pbc.text }}>{pbc.label}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-black text-lg" style={{ color:"#1a3a6b" }}>{p.kapScore}</div>
-                    <div className="text-[10px] text-gray-400">{formatRp(p.money)}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {(()=>{
+            const MEDAL_INFO: Record<MenuType,{emoji:string;label:string;bg:string;color:string}> = {
+              kopi:      {emoji:"☕",label:"Best Kopi",      bg:"#fef3c7",color:"#92400e"},
+              teh:       {emoji:"🍵",label:"Best Teh",       bg:"#d1fae5",color:"#065f46"},
+              kue:       {emoji:"🍰",label:"Best Kue",       bg:"#fce7f3",color:"#9d174d"},
+              croissant: {emoji:"🥐",label:"Best Croissant", bg:"#ffedd5",color:"#9a3412"},
+            };
+            return (
+              <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-4 py-2.5 border-b border-gray-100"><h3 className="font-black text-gray-700 text-sm">🏆 Papan KAP</h3></div>
+                {[...room.players].sort((a,b)=>b.kapScore-a.kapScore).map((p,i)=>{
+                  const pbc=bcInfo(p.boardColor);
+                  const pMedals=p.medals??[];
+                  return (
+                    <div key={p.id} className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                      <span className="text-base w-5 mt-0.5">{["🥇","🥈","🥉","4️⃣"][i]}</span>
+                      <span className="text-xl mt-0.5">{pbc.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-800 text-sm truncate">{p.id===myId?`${p.name} (Kamu)`:p.name}</div>
+                        <div className="text-[10px] mb-1" style={{ color:pbc.text }}>{pbc.label}</div>
+                        {pMedals.length>0&&(
+                          <div className="flex flex-wrap gap-1">
+                            {pMedals.map(m=>{
+                              const mi=MEDAL_INFO[m];
+                              return <span key={m} className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background:mi.bg,color:mi.color }}>{mi.emoji} {mi.label}</span>;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-black text-lg" style={{ color:"#1a3a6b" }}>{p.kapScore}</div>
+                        {pMedals.length>0&&<div className="text-[10px] text-amber-600 font-bold">+{pMedals.length} medali</div>}
+                        <div className="text-[10px] text-gray-400">{formatRp(p.money)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
     );

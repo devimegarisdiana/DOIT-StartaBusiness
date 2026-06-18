@@ -28,6 +28,7 @@ interface PendingBid {
   currentRespondIndex: number;  // index into respondOrder
 }
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
+type Medal = MenuType;
 interface Transaction { id: string; keterangan: string; jumlah: number; tipe: "pemasukan" | "pengeluaran"; waktu: string; ronde: number; }
 
 interface Player {
@@ -37,6 +38,8 @@ interface Player {
   transactions: Transaction[]; lastAction: ActionChoice;
   csrPaidThisRound: boolean; lemburThisRound: boolean;
   csrKAP: number;
+  medals: Medal[];
+  medalKAP: number;
   areaLevels: PlayerAreaLevel[];
   cafeSetupDone: boolean;
   cafesSold: boolean;
@@ -111,7 +114,7 @@ function makePlayer(id: string, name: string, boardColor: BoardColor, isHost: bo
     id, name, boardColor, isHost, isBot: false, joinedAt: Date.now(),
     money: modal, hutang: 0,
     kap: { kreativitas: 0, socialNetworking: 0, internalLocus: 0, toleransiAmbiguitas: 0, bersediaRisiko: 0 },
-    transactions: [], lastAction: null, csrPaidThisRound: false, lemburThisRound: false, csrKAP: 0,
+    transactions: [], lastAction: null, csrPaidThisRound: false, lemburThisRound: false, csrKAP: 0, medals: [], medalKAP: 0,
     areaLevels: ALL_COLORS.map(area => ({ area, level: 1 })),
     cafeSetupDone: false, cafesSold: false,
   };
@@ -136,9 +139,29 @@ function initCafeSlots(): CafeSlot[] {
   return slots;
 }
 
+function assignMedals(room: Room) {
+  const menuTypes: MenuType[] = ["kopi", "teh", "kue", "croissant"];
+  room.players.forEach(p => { p.medals = []; p.medalKAP = 0; });
+  for (const menu of menuTypes) {
+    const counts = room.players.map(p => ({
+      id: p.id,
+      total: room.cafes.filter(c => c.ownerId === p.id).reduce((sum, c) => {
+        const item = c.menuItems.find(m => m.type === menu);
+        return sum + (item ? item.count : 0);
+      }, 0),
+    }));
+    const maxCount = Math.max(...counts.map(c => c.total));
+    if (maxCount <= 0) continue;
+    counts.filter(c => c.total === maxCount).forEach(c => {
+      const p = room.players.find(pl => pl.id === c.id);
+      if (p) { p.medals.push(menu); p.medalKAP += 1; }
+    });
+  }
+}
+
 function calculateFinalKAP(player: Player): number {
   const k = player.kap;
-  return k.kreativitas + k.socialNetworking + k.internalLocus + k.toleransiAmbiguitas + k.bersediaRisiko + (player.csrKAP || 0);
+  return k.kreativitas + k.socialNetworking + k.internalLocus + k.toleransiAmbiguitas + k.bersediaRisiko + (player.csrKAP || 0) + (player.medalKAP || 0);
 }
 
 function advanceRonde(room: Room) {
@@ -280,6 +303,7 @@ function processBotTurns(room: Room) {
         room.cafes.filter(c => c.ownerId === bot.id).forEach(c => { c.ownerId = null; });
       }
       if (room.players.every(p => p.cafesSold)) {
+        assignMedals(room);
         room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
         room.status = "finished"; room.phase = "finished";
       }
@@ -756,6 +780,7 @@ router.post("/rooms/:code/end-game-sell", (req, res) => {
   room.cafes.filter(c => c.ownerId === playerId).forEach(c => { c.ownerId = null; });
   processBotTurns(room);
   if (room.players.every(p => p.cafesSold)) {
+    assignMedals(room);
     room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
     room.status = "finished"; room.phase = "finished";
   }
@@ -768,6 +793,7 @@ router.post("/rooms/:code/finish-early", (req, res) => {
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   const { playerId } = req.body as { playerId: string };
   if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
+  assignMedals(room);
   room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
   room.status = "finished"; room.phase = "finished";
   persist();
@@ -784,7 +810,7 @@ router.post("/rooms/:code/facilitator-advance", (req, res) => {
   const idx = PHASE_ORDER.indexOf(room.phase);
   const next = PHASE_ORDER[idx + 1] ?? "finished";
   room.phase = next; room.actedThisPutaran = [];
-  if (next === "finished") { room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); }); room.status = "finished"; }
+  if (next === "finished") { assignMedals(room); room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); }); room.status = "finished"; }
   persist();
   res.json({ ok: true, newPhase: next });
 });
