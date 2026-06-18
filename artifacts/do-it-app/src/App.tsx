@@ -79,7 +79,8 @@ function BottomNav() {
 
 function AppContent() {
   const [splashDone, setSplashDone] = useState(() => {
-    return !!localStorage.getItem("doitSplashSeen") || window.location.pathname === "/game";
+    const p = window.location.pathname.replace(import.meta.env.BASE_URL.replace(/\/$/, ""), "");
+    return !!localStorage.getItem("doitSplashSeen") || p === "/game";
   });
   const { theme } = useTheme();
   const t = THEMES[theme];
