@@ -197,6 +197,7 @@ export default function GamePage() {
   // Customer input
   const [custMenuSought, setCustMenuSought] = useState<MenuType[]>([]);
   const [custCount, setCustCount] = useState("1");
+  const [custArea, setCustArea] = useState<BoardColor | null>(null);
   // End-game sell
   const [salePrice, setSalePrice] = useState("");
   // Debt
@@ -585,7 +586,9 @@ export default function GamePage() {
     const myActedCSR=myPlayer.csrPaidThisRound;
     const myActedRevenue=room.actedThisPutaran.includes(myId+"_rev");
     const myActedLembur=room.actedThisPutaran.includes(myId+"_lembur");
-    const myActedCustomer=(room.customerInputs??[]).some(ci=>ci.playerId===myId);
+    const myOwnedAreas=[...new Set(room.cafes.filter(c=>c.ownerId===myId&&c.isSetup).map(c=>c.area))] as BoardColor[];
+    const mySubmittedAreas=(room.customerInputs??[]).filter(ci=>ci.playerId===myId).map(ci=>ci.area);
+    const myActedCustomer=myOwnedAreas.length>0&&myOwnedAreas.every(a=>mySubmittedAreas.includes(a));
     const myActedAction=room.actedThisPutaran.some(x=>x===myId);
     const myCafes=room.cafes.filter(c=>c.ownerId===myId);
     const bc=bcInfo(myPlayer.boardColor);
@@ -1257,81 +1260,146 @@ export default function GamePage() {
           )}
 
           {/* ── CUSTOMER INPUT ── */}
-          {room.phase==="customer_input"&&(
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-1"><span className="text-2xl">👥</span><h3 className="font-black text-gray-800 text-base">Input Pelanggan Area {bc.label}</h3></div>
-              <p className="text-xs text-gray-400 mb-4">Sesuaikan dengan kondisi di papan fisikmu. Ini menentukan pendapatan cafe di areamu.</p>
-              {myActedCustomer?(
-                <div className="bg-green-50 rounded-xl p-3 text-center">
-                  <span className="text-2xl">✅</span><p className="text-sm font-bold text-green-700 mt-1">Data pelanggan tersimpan</p>
-                  <p className="text-xs text-gray-400">Menunggu pemain lain...</p>
-                  <div className="flex gap-1 flex-wrap justify-center mt-2">
-                    {room.players.map(p=>(
-                      <span key={p.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:room.customerInputs.some(ci=>ci.playerId===p.id)?"#dcfce7":"#fee2e2", color:room.customerInputs.some(ci=>ci.playerId===p.id)?"#16a34a":"#dc2626" }}>
-                        {p.id===myId?"Kamu":p.name} {room.customerInputs.some(ci=>ci.playerId===p.id)?"✓":"⏳"}
-                      </span>
-                    ))}
+          {room.phase==="customer_input"&&(()=>{
+            const activeArea=custArea||(myOwnedAreas.find(a=>!mySubmittedAreas.includes(a))??null);
+            const highestSocialCafe=activeArea
+              ?[...room.cafes.filter(c=>c.area===activeArea&&c.isSetup)].sort((a,b)=>b.socialCustomers-a.socialCustomers)[0]??null
+              :null;
+            const areaSocialBonus=activeArea?room.cafes.filter(c=>c.area===activeArea).reduce((s,c)=>s+c.socialCustomers,0):0;
+            return (
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-1"><span className="text-2xl">👥</span><h3 className="font-black text-gray-800 text-base">Input Pelanggan</h3></div>
+                <p className="text-xs text-gray-400 mb-3">Input data pelanggan untuk setiap area cafe milikmu.</p>
+
+                {/* Area tabs */}
+                {myOwnedAreas.length>0&&(
+                  <div className="flex gap-1.5 flex-wrap mb-3">
+                    {myOwnedAreas.map(a=>{
+                      const cbc=bcInfo(a); const submitted=mySubmittedAreas.includes(a); const isActive=a===activeArea;
+                      return (
+                        <button key={a} onClick={()=>{if(!submitted){setCustArea(a);setCustMenuSought([]);setCustCount("1");}}}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-black border-2 transition-all"
+                          style={{ background:cbc.bg, color:cbc.text, borderColor:isActive?cbc.text:submitted?"#a3a3a0":cbc.bg, opacity:submitted?0.6:1 }}>
+                          {cbc.emoji} {cbc.label} {submitted?"✓":""}
+                        </button>
+                      );
+                    })}
                   </div>
-                </div>
-              ):(
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 mb-2 block">Menu yang Dicari Pelanggan (pilih 2-3)</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {MENU_TYPES.map(mt=>{
-                        const info=MENU_INFO[mt];
-                        const selected=custMenuSought.includes(mt);
-                        return (
-                          <button key={mt} onClick={()=>setCustMenuSought(prev=>prev.includes(mt)?prev.filter(m=>m!==mt):[...prev,mt])}
-                            className="p-2.5 rounded-xl flex items-center gap-2 border-2 transition-all"
-                            style={{ background:selected?"#eff6ff":"#fafafa", borderColor:selected?"#2478d4":"#e5e7eb" }}>
-                            <span className="text-xl">{info.emoji}</span>
-                            <span className="text-xs font-bold" style={{ color:selected?"#1d4ed8":"#666" }}>{info.label}</span>
-                          </button>
-                        );
+                )}
+
+                {myActedCustomer?(
+                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                    <span className="text-2xl">✅</span><p className="text-sm font-bold text-green-700 mt-1">Semua area sudah diinput</p>
+                    <p className="text-xs text-gray-400">Menunggu pemain lain...</p>
+                    <div className="flex gap-1 flex-wrap justify-center mt-2">
+                      {room.players.map(p=>{
+                        const pOwned=[...new Set(room.cafes.filter(c=>c.ownerId===p.id&&c.isSetup).map(c=>c.area))];
+                        const pSubmitted=room.customerInputs.filter(ci=>ci.playerId===p.id).length;
+                        const pDone=pOwned.length===0||(pSubmitted>=pOwned.length);
+                        return <span key={p.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:pDone?"#dcfce7":"#fee2e2",color:pDone?"#16a34a":"#dc2626" }}>{p.id===myId?"Kamu":p.name} {pDone?"✓":"⏳"}</span>;
                       })}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 mb-1 block">Jumlah Pelanggan di Areamu</label>
-                    <p className="text-[10px] text-gray-400 mb-1">Default 1 + bonus dari aksi Social yang sudah dilakukan</p>
-                    <input type="number" value={custCount} onChange={e=>setCustCount(e.target.value)} min={0} placeholder="1"
-                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-base font-bold outline-none focus:border-blue-400"/>
-                  </div>
-                  <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-                    <strong>Bonus Social yang Ada:</strong>{" "}
-                    {room.cafes.filter(c=>c.area===myPlayer.boardColor).reduce((s,c)=>s+c.socialCustomers,0)} pelanggan tambahan dari aksi Social
-                  </div>
-                  <button onClick={async()=>{
-                    setLoading(true);setErr("");
-                    try{await post("/customer-input",{menuSought:custMenuSought,customerCount:parseInt(custCount)||1});}
-                    catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
-                    finally{setLoading(false);}
-                  }} disabled={loading}
-                    className="w-full py-3.5 rounded-xl font-black text-sm text-white disabled:opacity-50 active:scale-95"
-                    style={{ background:"linear-gradient(135deg,#16a34a,#15803d)" }}>
-                    {loading?"Menyimpan...":"✅ Konfirmasi Data Pelanggan"}
-                  </button>
-                </div>
-              )}
-              {/* Show other players' customer inputs */}
-              {room.customerInputs.length>0&&(
-                <div className="mt-3 bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-500 mb-2">Data Pelanggan Yang Sudah Masuk:</p>
-                  {room.customerInputs.map(ci=>{
-                    const cbc=bcInfo(ci.area);
-                    return (
-                      <div key={ci.playerId} className="flex items-center gap-2 mb-1 last:mb-0">
-                        <span className="text-sm">{cbc.emoji}</span>
-                        <span className="text-xs font-bold" style={{ color:cbc.text }}>{cbc.label}</span>
-                        <span className="text-xs text-gray-500">👥{ci.customerCount} · {ci.menuSought.map(m=>MENU_INFO[m].emoji).join("")}</span>
+                ):myOwnedAreas.length===0?(
+                  <div className="bg-gray-50 rounded-xl p-3 text-center text-xs text-gray-400">Tidak ada cafe aktif</div>
+                ):activeArea?(
+                  <div className="flex flex-col gap-3">
+                    {/* Active area header */}
+                    <div className="rounded-xl px-3 py-2.5 flex items-center justify-between" style={{ background:bcInfo(activeArea).bg }}>
+                      <span className="text-sm font-black" style={{ color:bcInfo(activeArea).text }}>{bcInfo(activeArea).emoji} Area {bcInfo(activeArea).label}</span>
+                      <span className="text-[10px] font-bold text-gray-400">{myOwnedAreas.indexOf(activeArea)+1}/{myOwnedAreas.length}</span>
+                    </div>
+
+                    {/* Highest social cafe in this area */}
+                    {highestSocialCafe&&(
+                      <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 flex items-start gap-2.5">
+                        <span className="text-xl mt-0.5">🏆</span>
+                        <div>
+                          <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Social Tertinggi di Area Ini</p>
+                          <p className="text-xs font-black text-gray-800">{highestSocialCafe.name}</p>
+                          <p className="text-[10px] text-gray-500">
+                            🤝 {highestSocialCafe.socialCustomers} pelanggan tambahan
+                            {highestSocialCafe.socialCustomers===0?" (belum ada aksi Social)":""}
+                          </p>
+                          {room.cafes.filter(c=>c.area===activeArea&&c.isSetup).length>1&&(
+                            <div className="mt-1 flex flex-col gap-0.5">
+                              {[...room.cafes.filter(c=>c.area===activeArea&&c.isSetup)].sort((a,b)=>b.socialCustomers-a.socialCustomers).slice(1).map(c=>(
+                                <p key={c.id} className="text-[10px] text-gray-400">{c.name}: 🤝 {c.socialCustomers}</p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                    )}
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 mb-2 block">Menu yang Dicari Pelanggan (pilih 2-3)</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {MENU_TYPES.map(mt=>{
+                          const info=MENU_INFO[mt]; const selected=custMenuSought.includes(mt);
+                          return (
+                            <button key={mt} onClick={()=>setCustMenuSought(prev=>prev.includes(mt)?prev.filter(m=>m!==mt):[...prev,mt])}
+                              className="p-2.5 rounded-xl flex items-center gap-2 border-2 transition-all"
+                              style={{ background:selected?"#eff6ff":"#fafafa", borderColor:selected?"#2478d4":"#e5e7eb" }}>
+                              <span className="text-xl">{info.emoji}</span>
+                              <span className="text-xs font-bold" style={{ color:selected?"#1d4ed8":"#666" }}>{info.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 mb-1 block">Jumlah Pelanggan di Area {bcInfo(activeArea).label}</label>
+                      <p className="text-[10px] text-gray-400 mb-1">Default 1 + bonus dari aksi Social yang sudah dilakukan</p>
+                      <input type="number" value={custCount} onChange={e=>setCustCount(e.target.value)} min={0} placeholder="1"
+                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-base font-bold outline-none focus:border-blue-400"/>
+                    </div>
+
+                    {areaSocialBonus>0&&(
+                      <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+                        <strong>Bonus Social Area Ini:</strong> +{areaSocialBonus} pelanggan dari aksi Social
+                      </div>
+                    )}
+
+                    <button onClick={async()=>{
+                      if(!activeArea)return;
+                      setLoading(true);setErr("");
+                      try{
+                        await post("/customer-input",{area:activeArea,menuSought:custMenuSought,customerCount:parseInt(custCount)||1});
+                        setCustMenuSought([]);setCustCount("1");setCustArea(null);
+                        await pollRoom(room.code,true);
+                      }catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
+                      finally{setLoading(false);}
+                    }} disabled={loading}
+                      className="w-full py-3.5 rounded-xl font-black text-sm text-white disabled:opacity-50 active:scale-95"
+                      style={{ background:"linear-gradient(135deg,#16a34a,#15803d)" }}>
+                      {loading?"Menyimpan...":"✅ Konfirmasi Area "+bcInfo(activeArea).label}
+                    </button>
+                  </div>
+                ):null}
+
+                {/* Summary of all submitted inputs */}
+                {room.customerInputs.length>0&&(
+                  <div className="mt-3 bg-gray-50 rounded-xl p-3">
+                    <p className="text-[10px] font-bold text-gray-500 mb-2">Data Pelanggan Yang Sudah Masuk:</p>
+                    {room.customerInputs.map((ci,i)=>{
+                      const cbc=bcInfo(ci.area);
+                      const pname=room.players.find(p=>p.id===ci.playerId)?.name??"?";
+                      return (
+                        <div key={i} className="flex items-center gap-2 mb-1 last:mb-0">
+                          <span className="text-sm">{cbc.emoji}</span>
+                          <span className="text-xs font-bold" style={{ color:cbc.text }}>{cbc.label}</span>
+                          <span className="text-[10px] text-gray-400">({ci.playerId===myId?"Kamu":pname})</span>
+                          <span className="text-xs text-gray-500">👥{ci.customerCount} · {ci.menuSought.map(m=>MENU_INFO[m].emoji).join("")||"—"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── REVENUE / BEBAN OPERASIONAL ── */}
           {room.phase==="revenue"&&(

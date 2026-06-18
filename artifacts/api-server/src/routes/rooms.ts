@@ -243,13 +243,21 @@ function processBotTurns(room: Room) {
 
     if (phase === "customer_input") {
       let acted = false;
-      for (const bot of room.players.filter(p => p.isBot && !room.customerInputs.some(ci => ci.playerId === p.id))) {
-        room.customerInputs.push({ area: bot.boardColor, menuSought: ["kopi"], customerCount: 2, playerId: bot.id });
-        acted = true;
+      for (const bot of room.players.filter(p => p.isBot)) {
+        const ownedAreas = [...new Set(room.cafes.filter(c => c.ownerId === bot.id && c.isSetup).map(c => c.area))] as BoardColor[];
+        for (const area of ownedAreas) {
+          if (!room.customerInputs.some(ci => ci.playerId === bot.id && ci.area === area)) {
+            room.customerInputs.push({ area, menuSought: ["kopi"], customerCount: 2, playerId: bot.id });
+            acted = true;
+          }
+        }
       }
-      if (room.players.every(p => room.customerInputs.some(ci => ci.playerId === p.id))) {
-        room.phase = "revenue"; room.actedThisPutaran = []; continue;
-      }
+      const allDoneBot = room.players.every(p => {
+        const ownedAreas = [...new Set(room.cafes.filter(c => c.ownerId === p.id && c.isSetup).map(c => c.area))];
+        if (ownedAreas.length === 0) return true;
+        return ownedAreas.every(a => room.customerInputs.some(ci => ci.playerId === p.id && ci.area === a));
+      });
+      if (allDoneBot) { room.phase = "revenue"; room.actedThisPutaran = []; continue; }
       if (!acted) break;
       continue;
     }
@@ -668,14 +676,21 @@ router.post("/rooms/:code/customer-input", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   if (room.phase !== "customer_input") { res.status(400).json({ error: "Bukan fase input pelanggan" }); return; }
-  const { playerId, menuSought, customerCount } = req.body as { playerId: string; menuSought: MenuType[]; customerCount: number; };
+  const { playerId, area, menuSought, customerCount } = req.body as { playerId: string; area: BoardColor; menuSought: MenuType[]; customerCount: number; };
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
-  if (room.customerInputs.some(ci => ci.playerId === playerId)) { res.status(400).json({ error: "Sudah input pelanggan" }); return; }
-  room.customerInputs.push({ area: player.boardColor, menuSought: menuSought || [], customerCount: Number(customerCount) || 1, playerId });
-  if (room.players.every(p => room.customerInputs.some(ci => ci.playerId === p.id))) {
-    room.phase = "revenue"; room.actedThisPutaran = [];
-  }
+  if (!area) { res.status(400).json({ error: "Area harus diisi" }); return; }
+  const ownsInArea = room.cafes.some(c => c.area === area && c.ownerId === playerId && c.isSetup);
+  if (!ownsInArea) { res.status(400).json({ error: "Kamu tidak punya cafe aktif di area ini" }); return; }
+  if (room.customerInputs.some(ci => ci.playerId === playerId && ci.area === area)) { res.status(400).json({ error: "Sudah input untuk area ini" }); return; }
+  room.customerInputs.push({ area, menuSought: menuSought || [], customerCount: Number(customerCount) || 1, playerId });
+  // All done: every player submitted for every area where they own a cafe
+  const allDone = room.players.every(p => {
+    const ownedAreas = [...new Set(room.cafes.filter(c => c.ownerId === p.id && c.isSetup).map(c => c.area))];
+    if (ownedAreas.length === 0) return true;
+    return ownedAreas.every(a => room.customerInputs.some(ci => ci.playerId === p.id && ci.area === a));
+  });
+  if (allDone) { room.phase = "revenue"; room.actedThisPutaran = []; }
   processBotTurns(room);
   persist();
   res.json({ ok: true });
