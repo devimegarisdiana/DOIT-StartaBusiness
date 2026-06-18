@@ -36,7 +36,7 @@ app.get(`${BASE_PATH}/api/healthz`, (_req, res) => {
 // __dirname is injected by build.mjs banner → points to artifacts/api-server/dist/
 const staticDir = path.resolve(__dirname, "../../do-it-app/dist/public");
 if (existsSync(staticDir)) {
-  app.use(express.static(staticDir));
+  app.use(BASE_PATH || "/", express.static(staticDir));
   // Catch-all: return index.html for client-side routing (Express 5 syntax)
   app.get(/.*/, (_req, res) => {
     res.sendFile(path.join(staticDir, "index.html"));
