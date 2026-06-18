@@ -45,5 +45,5 @@ if (existsSync(staticDir)) {
 }
 
 app.listen(PORT, "0.0.0.0", () => {
-  logger.info({ port: PORT }, "Server listening");
+  logger.info({ port: PORT, cwd: process.cwd(), home: process.env.HOME }, "Server listening");
 });
