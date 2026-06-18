@@ -383,6 +383,18 @@ router.post("/rooms/:code/join", (req, res) => {
   res.json({ playerId, code: room.code });
 });
 
+router.post("/rooms/:code/leave", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  if (room.status !== "waiting") { res.status(400).json({ error: "Game sudah dimulai" }); return; }
+  const { playerId } = req.body as { playerId: string };
+  const idx = room.players.findIndex(p => p.id === playerId && !p.isHost);
+  if (idx === -1) { res.status(400).json({ error: "Pemain tidak ditemukan atau host tidak bisa leave" }); return; }
+  room.players.splice(idx, 1);
+  persist();
+  res.json({ ok: true });
+});
+
 router.post("/rooms/:code/shuffle-order", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }

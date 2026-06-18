@@ -570,9 +570,33 @@ export default function GamePage() {
               </button>
             </div>
           ):(
-            <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
-              <div className="text-2xl mb-1 animate-pulse">⏳</div>
-              <p className="text-sm font-bold text-gray-500">Menunggu host memulai...</p>
+            <div className="flex flex-col gap-2">
+              <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+                <div className="text-2xl mb-1 animate-pulse">⏳</div>
+                <p className="text-sm font-bold text-gray-500">Menunggu host memulai...</p>
+              </div>
+              <button
+                disabled={loading}
+                onClick={async () => {
+                  if (!window.confirm("Yakin ingin keluar dari room ini?")) return;
+                  setLoading(true);
+                  try {
+                    await fetch(`${API}/rooms/${room.code}/leave`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ playerId: myId }),
+                    });
+                  } catch { /* ignore */ } finally {
+                    setLoading(false);
+                  }
+                  clearSession();
+                  if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+                  setRoom(null); setMyId(""); setAppPhase("lobby");
+                }}
+                className="w-full py-3 rounded-2xl font-black text-sm disabled:opacity-50 active:scale-95 border-2"
+                style={{ background:"#fff5f5", color:"#dc2626", borderColor:"#fecaca" }}>
+                {loading ? "..." : "🚪 Keluar dari Room"}
+              </button>
             </div>
           )}
         </div>
