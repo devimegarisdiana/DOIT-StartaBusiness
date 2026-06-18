@@ -61,7 +61,9 @@ interface Room {
 
 // ─── File persistence ─────────────────────────────────────────────────────────
 
-const ROOMS_FILE = path.join("/tmp", "doit-rooms.json");
+// __dirname is injected by build.mjs → points to artifacts/api-server/dist/
+// Store rooms file at project root (do-it-game2/) so all Passenger workers share it
+const ROOMS_FILE = path.resolve(__dirname, "../../..", "doit-rooms.json");
 const ROOM_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function loadRoomsFromDisk(): Map<string, Room> {
