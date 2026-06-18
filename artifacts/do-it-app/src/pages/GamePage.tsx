@@ -24,12 +24,14 @@ interface PendingBid {
   expanderId: string;
   cafeName: string;
   openingPrice: number;
-  bids: Array<{ playerId: string; amount: number }>;
-  rejectedPlayers: string[];
-  pendingPlayers: string[];
+  buyoutPrice: number;
+  currentPrice: number;
+  currentHighBidderId: string;
+  activePlayers: string[];
+  turnOrder: string[];
+  currentTurnPlayerId: string;
   status: "pending" | "sold";
   winnerId: string | null;
-  winnerAmount: number;
 }
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
 interface Transaction { id: string; keterangan: string; jumlah: number; tipe: "pemasukan" | "pengeluaran"; waktu: string; ronde: number; }
@@ -623,7 +625,8 @@ export default function GamePage() {
     const bc=bcInfo(myPlayer.boardColor);
     const pendingBid=room.pendingBid;
     const isExpander=pendingBid?.expanderId===myId;
-    const amPending=pendingBid?.status==="pending"&&pendingBid.pendingPlayers.includes(myId);
+    const amActive=pendingBid?.status==="pending"&&(pendingBid.activePlayers.includes(myId)??false);
+    const isMyBidTurn=pendingBid?.status==="pending"&&pendingBid.currentTurnPlayerId===myId;
     const PHASE_LABELS: Record<string,string> = { cafe_setup:"Setup Cafe",csr:"CSR",operational:"Aksi",lembur_offer:"Lembur",customer_input:"Pelanggan",revenue:"Pendapatan",end_game_sell:"Jual Cafe",finished:"Selesai" };
     const isHost=room.hostId===myId;
 
@@ -754,69 +757,82 @@ export default function GamePage() {
           {/* ── PENDING BID ── */}
           {pendingBid?.status==="pending"&&(()=>{
             const expanderName = room.players.find(p=>p.id===pendingBid.expanderId)?.name ?? "?";
-            const alreadyBid = pendingBid.bids.find(b=>b.playerId===myId);
-            const alreadyRejected = pendingBid.rejectedPlayers.includes(myId);
-            const alreadyResponded = alreadyBid || alreadyRejected;
+            const currentWinnerName = room.players.find(p=>p.id===pendingBid.currentHighBidderId)?.name ?? "?";
+            const currentTurnName = room.players.find(p=>p.id===pendingBid.currentTurnPlayerId)?.name ?? "?";
             return (
               <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-purple-200">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">🏪</span>
                   <div>
-                    <h3 className="font-black text-purple-700 text-sm">Bidding Cafe!</h3>
+                    <h3 className="font-black text-purple-700 text-sm">Lelang Cafe Bergiliran!</h3>
                     <p className="text-xs text-gray-500"><strong>{pendingBid.cafeName}</strong> — dibuka oleh {isExpander?"kamu":expanderName}</p>
                   </div>
                 </div>
                 <div className="bg-purple-50 rounded-xl p-3 mb-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-400">Penawaran Tertinggi</span>
+                    <span className="font-black text-lg text-purple-700">{formatRp(pendingBid.currentPrice)}</span>
+                  </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400">Harga Pembukaan</span>
-                    <span className="font-black text-lg text-purple-700">{formatRp(pendingBid.openingPrice)}</span>
+                    <span className="text-xs text-gray-400">Pemenang Sementara</span>
+                    <span className="font-bold text-xs text-purple-600">{currentWinnerName}{pendingBid.currentHighBidderId===myId?" (Kamu)":""} 👑</span>
                   </div>
                 </div>
-                {/* Status setiap pemain */}
+                {/* Urutan giliran */}
                 <div className="flex gap-1 flex-wrap mb-3">
-                  {room.players.filter(p=>p.id!==pendingBid.expanderId).map(p=>{
-                    const hasBid=pendingBid.bids.find(b=>b.playerId===p.id);
-                    const hasRejected=pendingBid.rejectedPlayers.includes(p.id);
-                    const isPending=pendingBid.pendingPlayers.includes(p.id);
+                  {pendingBid.turnOrder.map(pid=>{
+                    const pname=room.players.find(p=>p.id===pid)?.name??"?";
+                    const isActive=pendingBid.activePlayers.includes(pid);
+                    const isCurrent=pid===pendingBid.currentTurnPlayerId;
+                    const isWinner=pid===pendingBid.currentHighBidderId;
                     return (
-                      <span key={p.id} className={`text-[10px] font-bold px-2 py-1 rounded-full ${hasBid?"bg-green-100 text-green-700":hasRejected?"bg-red-100 text-red-400":isPending?"bg-yellow-100 text-yellow-700":"bg-gray-100 text-gray-400"}`}>
-                        {p.id===myId?"Kamu":p.name} {hasBid?`✓ ${formatRp(hasBid.amount)}`:hasRejected?"✕ Tolak":isPending?"⏳":""}
+                      <span key={pid} className={`text-[10px] font-bold px-2 py-1 rounded-full ${!isActive?"bg-gray-100 text-gray-400 line-through":isCurrent?"bg-purple-200 text-purple-700":isWinner?"bg-green-100 text-green-700":"bg-gray-100 text-gray-500"}`}>
+                        {pid===myId?"Kamu":pname} {isCurrent?"▶":!isActive?"✕":isWinner?"👑":""}
                       </span>
                     );
                   })}
                 </div>
-                {isExpander?(
-                  <div className="bg-blue-50 rounded-xl p-3 text-center">
-                    <p className="text-xs font-bold text-blue-600">⏳ Menunggu pemain lain merespons…</p>
-                  </div>
-                ):amPending?(
+                {isMyBidTurn&&amActive?(
                   <>
-                    <p className="text-[10px] font-bold text-purple-500 text-center mb-2 uppercase tracking-widest">Masukkan tawaranmu!</p>
+                    <p className="text-[10px] font-bold text-purple-500 text-center mb-2 uppercase tracking-widest">Giliran kamu — bid atau pass!</p>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-gray-500 text-sm font-bold">Rp</span>
                       <input type="number" value={bidRaiseAmount} onChange={e=>setBidRaiseAmount(e.target.value)}
-                        placeholder={`min. ${pendingBid.openingPrice}`} min={pendingBid.openingPrice}
+                        placeholder={`lebih dari ${pendingBid.currentPrice}`} min={pendingBid.currentPrice+1}
                         className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-purple-400"/>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mb-2">
                       <button
-                        onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{action:"bid",amount:parseFloat(bidRaiseAmount)})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false);setBidRaiseAmount("");}}}
-                        disabled={loading||!bidRaiseAmount||parseFloat(bidRaiseAmount)<pendingBid.openingPrice}
+                        onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{action:"bid",newPrice:parseFloat(bidRaiseAmount)})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false);setBidRaiseAmount("");}}}
+                        disabled={loading||!bidRaiseAmount||parseFloat(bidRaiseAmount)<=pendingBid.currentPrice}
                         className="flex-1 py-3 rounded-xl font-black text-sm text-white disabled:opacity-40 active:scale-95" style={{ background:"#9b59b6" }}>
-                        💰 Bid {bidRaiseAmount?formatRp(parseFloat(bidRaiseAmount)):"..."}
+                        📈 Bid {bidRaiseAmount?formatRp(parseFloat(bidRaiseAmount)):"..."}
                       </button>
                       <button
-                        onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{action:"tolak"})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
+                        onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{action:"pass"})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
                         disabled={loading} className="flex-1 py-3 rounded-xl font-black text-sm bg-red-50 text-red-600 border border-red-200 active:scale-95">
-                        ✕ Tolak
+                        ✕ Pass
                       </button>
                     </div>
+                    {isExpander&&(
+                      <button
+                        onClick={async()=>{setLoading(true);setErr("");try{await post("/bid-respond",{action:"buyout"})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
+                        disabled={loading}
+                        className="w-full py-3 rounded-xl font-black text-sm text-white active:scale-95 disabled:opacity-50" style={{ background:"#ea580c" }}>
+                        💰 Buy Out Langsung – {formatRp(pendingBid.buyoutPrice)}
+                      </button>
+                    )}
                   </>
-                ):alreadyResponded?(
+                ):amActive?(
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
-                    <p className="text-xs font-bold text-gray-500">{alreadyBid?`✅ Kamu sudah bid ${formatRp(alreadyBid.amount)}`:"✕ Kamu sudah menolak"} — menunggu pemain lain</p>
+                    <div className="text-lg mb-1 animate-pulse">⏳</div>
+                    <p className="text-xs font-bold text-gray-500">Menunggu giliran <strong>{currentTurnName}</strong></p>
                   </div>
-                ):null}
+                ):(
+                  <div className="bg-red-50 rounded-xl p-3 text-center">
+                    <p className="text-xs font-bold text-red-400">Kamu sudah pass dari lelang ini</p>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -826,12 +842,10 @@ export default function GamePage() {
               <p className="text-sm font-bold text-green-700 mt-1">
                 {pendingBid.winnerId===myId
                   ? `✅ Kamu memenangkan ${pendingBid.cafeName}!`
-                  : pendingBid.winnerId===pendingBid.expanderId
-                    ? `🏪 Tidak ada yang bid — ${room.players.find(p=>p.id===pendingBid.expanderId)?.name??"?"} mendapat ${pendingBid.cafeName}`
-                    : `🏪 ${room.players.find(p=>p.id===pendingBid.winnerId)?.name??"?"} memenangkan ${pendingBid.cafeName} (${formatRp(pendingBid.winnerAmount)})`}
+                  : `🏪 ${room.players.find(p=>p.id===pendingBid.winnerId)?.name??"?"} memenangkan ${pendingBid.cafeName}`}
               </p>
               {pendingBid.winnerId!==pendingBid.expanderId&&pendingBid.expanderId===myId&&(
-                <p className="text-xs text-green-600 mt-0.5">+{formatRp(pendingBid.winnerAmount)} masuk ke kasmu</p>
+                <p className="text-xs text-green-600 mt-0.5">+{formatRp(pendingBid.currentPrice)} masuk ke kasmu</p>
               )}
             </div>
           )}
