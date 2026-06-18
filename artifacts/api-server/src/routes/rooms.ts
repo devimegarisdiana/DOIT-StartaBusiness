@@ -22,15 +22,15 @@ interface PlayerAreaLevel { area: BoardColor; level: number; }
 interface CustomerInput { area: BoardColor; menuSought: MenuType[]; customerCount: number; playerId: string; }
 interface PendingBid {
   cafeId: string;
-  expanderId: string;           // player who chose expand (opens the auction)
+  expanderId: string;
   cafeName: string;
-  buyoutPrice: number;          // 3× opening price – only expanderId can use
-  currentPrice: number;         // current highest offer
-  currentHighBidderId: string;  // who currently holds the highest bid
-  activePlayers: string[];      // players still in the auction (haven't passed)
-  turnOrder: string[];          // circular order starting from player after expander
-  currentTurnPlayerId: string;  // whose turn it is
+  openingPrice: number;
+  bids: Array<{ playerId: string; amount: number }>;
+  rejectedPlayers: string[];
+  pendingPlayers: string[];
   status: "pending" | "sold";
+  winnerId: string | null;
+  winnerAmount: number;
 }
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
 type Medal = MenuType;
@@ -610,24 +610,17 @@ router.post("/rooms/:code/action", (req, res) => {
         addTx(currentPlayer, `Buka Bid (solo): ${emptySlot.name}`, oPrice, "pengeluaran", room.currentRonde);
         currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
       } else {
-        // Build turn order starting from player after expander (circular), expander at end
-        const expanderIdx = room.players.findIndex(p => p.id === playerId);
-        const turnOrder: string[] = [];
-        for (let i = 1; i < room.players.length; i++) {
-          turnOrder.push(room.players[(expanderIdx + i) % room.players.length].id);
-        }
-        turnOrder.push(playerId); // expander gets a turn too
         room.pendingBid = {
           cafeId: emptySlot.id,
           expanderId: playerId,
           cafeName: emptySlot.name,
-          buyoutPrice: buyoutP,
-          currentPrice: oPrice,
-          currentHighBidderId: playerId,
-          activePlayers: room.players.map(p => p.id),
-          turnOrder,
-          currentTurnPlayerId: turnOrder[0],
+          openingPrice: oPrice,
+          bids: [],
+          rejectedPlayers: [],
+          pendingPlayers: room.players.filter(p => p.id !== playerId).map(p => p.id),
           status: "pending",
+          winnerId: null,
+          winnerAmount: 0,
         };
         currentPlayer.lastAction = action;
         persist();
@@ -661,39 +654,49 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   if (!room.pendingBid || room.pendingBid.status !== "pending") { res.status(400).json({ error: "Tidak ada bidding aktif" }); return; }
-  const { playerId, action, newPrice } = req.body as { playerId: string; action: "raise" | "pass" | "buyout"; newPrice?: number };
+  const { playerId, action, amount } = req.body as { playerId: string; action: "bid" | "tolak"; amount?: number };
   const bid = room.pendingBid;
 
-  if (playerId !== bid.currentTurnPlayerId) {
-    const name = room.players.find(p => p.id === bid.currentTurnPlayerId)?.name || "pemain lain";
-    res.status(400).json({ error: `Belum giliranmu. Menunggu ${name}` }); return;
-  }
-  if (!bid.activePlayers.includes(playerId)) {
-    res.status(400).json({ error: "Kamu sudah keluar dari lelang ini" }); return;
+  if (!bid.pendingPlayers.includes(playerId)) {
+    res.status(400).json({ error: "Kamu sudah merespons bidding ini" }); return;
   }
 
   const cafe = room.cafes.find(c => c.id === bid.cafeId)!;
   const expander = room.players.find(p => p.id === bid.expanderId)!;
 
-  function nextActive(afterId: string): string | null {
-    const idx = bid.turnOrder.indexOf(afterId);
-    for (let i = 1; i < bid.turnOrder.length; i++) {
-      const candidate = bid.turnOrder[(idx + i) % bid.turnOrder.length];
-      if (bid.activePlayers.includes(candidate)) return candidate;
+  // Remove from pending
+  bid.pendingPlayers = bid.pendingPlayers.filter(id => id !== playerId);
+
+  if (action === "bid") {
+    const bidAmount = Number(amount);
+    if (!bidAmount || bidAmount < bid.openingPrice) {
+      bid.pendingPlayers.push(playerId);
+      res.status(400).json({ error: `Harga bid minimal Rp.${bid.openingPrice}` }); return;
     }
-    return null;
+    bid.bids.push({ playerId, amount: bidAmount });
+  } else if (action === "tolak") {
+    bid.rejectedPlayers.push(playerId);
+  } else {
+    bid.pendingPlayers.push(playerId);
+    res.status(400).json({ error: "Aksi tidak valid (bid / tolak)" }); return;
   }
 
+  // Not everyone has responded yet
+  if (bid.pendingPlayers.length > 0) {
+    persist();
+    res.json({ ok: true, status: "pending" });
+    return;
+  }
+
+  // All responded → finalize
   function finalizeBid(winnerId: string, price: number) {
     const r = room!;
-    const winner = r.players.find(p => p.id === winnerId)!
+    const winner = r.players.find(p => p.id === winnerId)!;
     if (winnerId === bid.expanderId) {
-      // Expander wins → pays bank
       if (winner.money < price) { const diff=price-winner.money; const units=Math.ceil(diff/3); winner.hutang+=units*3; winner.kap.bersediaRisiko=Math.min(7,winner.kap.bersediaRisiko+units); winner.money=Math.max(0,winner.money+units*3-price); }
       else { winner.money -= price; }
       addTx(winner, `Menang Bid: ${cafe.name}`, price, "pengeluaran", r.currentRonde);
     } else {
-      // Another player wins → pays expander
       if (winner.money < price) { const diff=price-winner.money; const units=Math.ceil(diff/3); winner.hutang+=units*3; winner.kap.bersediaRisiko=Math.min(7,winner.kap.bersediaRisiko+units); winner.money=Math.max(0,winner.money+units*3-price); }
       else { winner.money -= price; }
       expander.money += price;
@@ -701,7 +704,8 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
       addTx(expander, `Cafe dibeli ${winner.name}: ${cafe.name}`, price, "pemasukan", r.currentRonde);
     }
     cafe.ownerId = winnerId; cafe.isSetup = true;
-    bid.currentHighBidderId = winnerId;
+    bid.winnerId = winnerId;
+    bid.winnerAmount = price;
     bid.status = "sold";
     expander.kap.internalLocus = Math.min(7, expander.kap.internalLocus + 1);
     expander.lastAction = "expand";
@@ -718,48 +722,16 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
     persist();
   }
 
-  if (action === "buyout") {
-    if (playerId !== bid.expanderId) { res.status(403).json({ error: "Buy Out hanya untuk pemain yang membuka Expand" }); return; }
-    finalizeBid(bid.expanderId, bid.buyoutPrice);
-    res.json({ ok: true, status: "sold", winner: bid.expanderId });
-    return;
+  if (bid.bids.length === 0) {
+    // Nobody bid → expander gets the cafe, pays bank
+    finalizeBid(bid.expanderId, bid.openingPrice);
+  } else {
+    // Highest bidder wins, pays expander
+    const highest = bid.bids.reduce((best, b) => b.amount > best.amount ? b : best);
+    finalizeBid(highest.playerId, highest.amount);
   }
 
-  if (action === "raise") {
-    const price = Number(newPrice);
-    if (!price || price <= bid.currentPrice) { res.status(400).json({ error: `Harga harus lebih tinggi dari Rp.${bid.currentPrice}` }); return; }
-    bid.currentPrice = price;
-    bid.currentHighBidderId = playerId;
-    const next = nextActive(playerId);
-    if (!next || next === playerId) {
-      finalizeBid(playerId, price);
-      res.json({ ok: true, status: "sold" });
-    } else {
-      bid.currentTurnPlayerId = next;
-      persist();
-      res.json({ ok: true, status: "pending" });
-    }
-    return;
-  }
-
-  if (action === "pass") {
-    const next = nextActive(playerId); // find next before removing self
-    bid.activePlayers = bid.activePlayers.filter(id => id !== playerId);
-    if (bid.activePlayers.length <= 1) {
-      finalizeBid(bid.activePlayers[0] ?? bid.currentHighBidderId, bid.currentPrice);
-      res.json({ ok: true, status: "sold" });
-    } else if (!next || !bid.activePlayers.includes(next)) {
-      finalizeBid(bid.currentHighBidderId, bid.currentPrice);
-      res.json({ ok: true, status: "sold" });
-    } else {
-      bid.currentTurnPlayerId = next;
-      persist();
-      res.json({ ok: true, status: "pending" });
-    }
-    return;
-  }
-
-  res.status(400).json({ error: "Aksi tidak valid (raise / pass / buyout)" });
+  res.json({ ok: true, status: "sold" });
 });
 
 router.post("/rooms/:code/lembur", (req, res) => {
