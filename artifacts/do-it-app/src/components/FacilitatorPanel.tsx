@@ -1,7 +1,7 @@
 import { useState } from "react";
 interface Props { roomCode:string; myId:string; onClose:()=>void; }
 
-const API="/api";
+const API=`${import.meta.env.BASE_URL}api`;
 async function postRoom(code:string,path:string,body:object) {
   const r=await fetch(`${API}/rooms/${code}${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const d=await r.json(); if(!r.ok) throw new Error(d.error||"Error"); return d;
