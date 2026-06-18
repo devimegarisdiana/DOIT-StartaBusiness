@@ -1581,16 +1581,63 @@ export default function GamePage() {
             ];
             const getLevel=(v:number,mx:number)=>v/mx>=0.6?"high":v/mx>=0.3?"mid":"low";
 
-            type HL={emoji:string;text:string;pos:boolean};
-            const hl:HL[]=[];
-            if(pinjaCount>0&&bayarCount>0)hl.push({emoji:"💰",text:`Berhutang ${pinjaCount}× dan melunasi ${bayarCount}× — keberanian mengambil keputusan terukur dengan perencanaan yang matang.`,pos:true});
-            else if(pinjaCount>0)hl.push({emoji:"⚠️",text:`Berhutang ${pinjaCount}× tanpa pelunasan — perlu lebih disiplin dalam manajemen keuangan jangka panjang.`,pos:false});
-            if(csrCount>0)hl.push({emoji:"🌍",text:`Aktif CSR sebanyak ${csrCount}× — mencerminkan kesadaran tanggung jawab sosial yang tinggi sebagai wirausaha.`,pos:true});
-            if(lemburCount>0)hl.push({emoji:"⚡",text:`Lembur ${lemburCount}× saat dibutuhkan — tidak segan kerja ekstra untuk mempertahankan momentum bisnis.`,pos:true});
-            if(bidCount+buyOutCount>0)hl.push({emoji:"🏪",text:`Ekspansi agresif — membuka ${bidCount+buyOutCount} cafe baru via bidding/buy out. Jiwa ekspansif yang kuat.`,pos:true});
-            if(upgradeCount>0)hl.push({emoji:"🔧",text:`${upgradeCount}× upgrade produk — komitmen terhadap peningkatan kualitas layanan secara berkelanjutan.`,pos:true});
-            if(hutangSocialCount>0)hl.push({emoji:"🎲",text:`Berani berhutang untuk aksi Social ${hutangSocialCount}× — berani investasi membangun jaringan meski belum cukup modal.`,pos:true});
-            if(hl.length===0)hl.push({emoji:"📝",text:"Bermain dengan hati-hati dan terstruktur sepanjang permainan.",pos:true});
+            const expandOpenCount=bidCount+buyOutCount;
+            const menangBidCount=countTx("Menang Bid");
+            const cafeRebutCount=countTx("Cafe dibeli");
+            const totalIncome=txs.filter(t=>t.tipe==="pemasukan").reduce((s,t)=>s+t.jumlah,0);
+            const totalExpense=txs.filter(t=>t.tipe==="pengeluaran").reduce((s,t)=>s+t.jumlah,0);
+            const ambPenalty=kap.toleransiAmbiguitas>=7?3:kap.toleransiAmbiguitas>=4?2:kap.toleransiAmbiguitas>=2?1:0;
+            const hutangSisa=myPlayer.hutang??0;
+
+            type HL={emoji:string;title:string;detail:string;pos:boolean};
+            const kelebihan:HL[]=[];
+            const kekurangan:HL[]=[];
+
+            // Kreativitas
+            if(kap.kreativitas>=5) kelebihan.push({emoji:"💡",title:"Inovator Aktif",detail:`Upgrade produk ${upgradeCount}× — konsisten meningkatkan kualitas & daya saing cafe.`,pos:true});
+            else if(upgradeCount===0) kekurangan.push({emoji:"🔧",title:"Minim Inovasi Produk",detail:"Tidak ada upgrade produk sama sekali. Inovasi menjaga cafe tetap kompetitif di pasar.",pos:false});
+            else if(kap.kreativitas<=2) kekurangan.push({emoji:"💡",title:"Kreativitas Perlu Ditingkatkan",detail:`Hanya ${upgradeCount}× upgrade — coba lebih sering berinvestasi pada pengembangan produk cafe.`,pos:false});
+
+            // Social Networking
+            if(kap.socialNetworking>=5) kelebihan.push({emoji:"🤝",title:"Networker Handal",detail:`CSR ${csrCount}× — aktif membangun kepercayaan publik dan memperluas jaringan bisnis.`,pos:true});
+            else if(csrCount===0) kekurangan.push({emoji:"🌍",title:"Tidak Ada Aktivitas CSR",detail:"Jaringan sosial yang kuat membuka lebih banyak pelanggan. CSR adalah investasi reputasi jangka panjang.",pos:false});
+            else if(kap.socialNetworking<=2) kekurangan.push({emoji:"🤝",title:"Jaringan Bisnis Lemah",detail:`Hanya ${csrCount}× CSR — perlu lebih aktif membangun relasi untuk memperluas pangsa pasar.`,pos:false});
+
+            // Locus of Control / Ekspansi
+            if(kap.internalLocus>=5) kelebihan.push({emoji:"💪",title:"Ekspansif & Percaya Diri",detail:`Membuka ${expandOpenCount} cafe baru — berani merebut peluang di area lain tanpa ragu.`,pos:true});
+            else if(expandOpenCount===0) kekurangan.push({emoji:"🏪",title:"Tidak Ada Ekspansi",detail:"Tidak pernah mencoba expand ke area lain. Keberanian keluar dari zona nyaman adalah kunci pertumbuhan.",pos:false});
+
+            // Manajemen hutang
+            if(pinjaCount>0&&hutangSisa===0) kelebihan.push({emoji:"💰",title:"Manajemen Hutang Terencana",detail:`Pinjam ${pinjaCount}× untuk modal dan melunasi semua hutang — leverage yang bertanggung jawab.`,pos:true});
+            else if(hutangSisa>0&&pinjaCount>0) kekurangan.push({emoji:"⚠️",title:`Hutang Rp.${hutangSisa} Belum Lunas`,detail:`Masih menyisakan hutang bank sebesar Rp.${hutangSisa} — berdampak negatif pada arus kas dan stabilitas bisnis.`,pos:false});
+
+            // FOMO / Ambiguitas
+            if(ambPenalty>0) kekurangan.push({emoji:"😰",title:`Rentan FOMO (−${ambPenalty} KAP)`,detail:`Mengikuti keputusan pemain lain ${kap.toleransiAmbiguitas}× — strategi kurang orisinal, mengakibatkan pengurangan ${ambPenalty} poin KAP final.`,pos:false});
+            else if(kap.toleransiAmbiguitas===0) kelebihan.push({emoji:"🧠",title:"Strategi Orisinal",detail:"Tidak pernah terpengaruh FOMO — selalu mengambil keputusan berdasarkan analisis dan strategi sendiri.",pos:true});
+
+            // Efisiensi finansial
+            if(totalIncome>0&&totalExpense>0){
+              const ratio=totalIncome/totalExpense;
+              if(ratio>=1.5) kelebihan.push({emoji:"📈",title:"Bisnis Sangat Profitable",detail:`Pemasukan ${formatRp(totalIncome)} vs pengeluaran ${formatRp(totalExpense)} — efisiensi finansial yang sangat baik.`,pos:true});
+              else if(ratio<0.7) kekurangan.push({emoji:"📉",title:"Pengeluaran Melebihi Pemasukan",detail:`Pengeluaran ${formatRp(totalExpense)} jauh melampaui pemasukan ${formatRp(totalIncome)} — perlu strategi efisiensi biaya lebih ketat.`,pos:false});
+            }
+
+            // Lembur
+            if(lemburCount>=3) kelebihan.push({emoji:"⚡",title:"Pekerja Keras",detail:`Lembur ${lemburCount}× — tidak segan kerja ekstra untuk memaksimalkan pendapatan di saat-saat kritis.`,pos:true});
+            else if(lemburCount===0) kekurangan.push({emoji:"⏰",title:"Tidak Memanfaatkan Lembur",detail:"Tidak pernah lembur — melewatkan kesempatan menambah pemasukan di luar jam operasional normal.",pos:false});
+
+            // Cafe direbut kompetitor
+            if(cafeRebutCount>0) kekurangan.push({emoji:"🏚️",title:`Cafe Direbut Kompetitor ${cafeRebutCount}×`,detail:`Cafe yang kamu buka untuk bid berhasil diambil pemain lain — pertimbangkan harga pembukaan yang lebih strategis.`,pos:false});
+            if(menangBidCount>cafeRebutCount&&menangBidCount>0) kelebihan.push({emoji:"🏆",title:"Pemenang Lelang",detail:`Berhasil memenangkan ${menangBidCount} lelang cafe — agresif dan tepat dalam bidding kompetitif.`,pos:true});
+
+            // Hutang untuk social
+            if(hutangSocialCount>0) kelebihan.push({emoji:"🎲",title:"Berani Investasi Jaringan",detail:`Berhutang ${hutangSocialCount}× untuk aksi Social — berani berinvestasi membangun relasi meski modal terbatas.`,pos:true});
+
+            // Medals
+            if((myPlayer.medals?.length??0)>=2) kelebihan.push({emoji:"🏅",title:`Multi-Peraih Medali (${myPlayer.medals!.length}×)`,detail:"Dominasi di beberapa kategori menu sekaligus — keunggulan kompetitif yang nyata.",pos:true});
+
+            if(kelebihan.length===0) kelebihan.push({emoji:"🌱",title:"Pengalaman Baru",detail:"Masih dalam tahap belajar — setiap permainan adalah kesempatan tumbuh yang berharga!",pos:true});
+            if(kekurangan.length===0) kekurangan.push({emoji:"✅",title:"Tidak Ada Kelemahan Signifikan",detail:"Bermain dengan sangat seimbang dan terencana — semua aspek wirausaha dikelola dengan baik!",pos:true});
 
             return (
               <div className="bg-white rounded-2xl p-4 shadow-sm">
@@ -1679,13 +1726,29 @@ export default function GamePage() {
                   );
                 })()}
 
-                {/* Behavioral highlights */}
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sorotan Keputusan Sepanjang Permainan</p>
+                {/* Behavioral highlights — Kelebihan */}
+                <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-2">✅ Kelebihan</p>
+                <div className="flex flex-col gap-2 mb-4">
+                  {kelebihan.map((h,i)=>(
+                    <div key={i} className="flex items-start gap-2.5 rounded-xl p-3 bg-green-50 border border-green-100">
+                      <span className="text-xl shrink-0">{h.emoji}</span>
+                      <div>
+                        <p className="text-xs font-black text-green-800 mb-0.5">{h.title}</p>
+                        <p className="text-[11px] leading-relaxed text-green-700">{h.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Behavioral highlights — Kekurangan */}
+                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">⚠️ Area Pengembangan</p>
                 <div className="flex flex-col gap-2">
-                  {hl.map((h,i)=>(
-                    <div key={i} className="flex items-start gap-2 rounded-xl p-2.5" style={{ background:h.pos?"#f0fdf4":"#fef2f2" }}>
-                      <span className="text-base shrink-0 mt-0.5">{h.emoji}</span>
-                      <p className="text-[11px] leading-relaxed" style={{ color:h.pos?"#15803d":"#b91c1c" }}>{h.text}</p>
+                  {kekurangan.map((h,i)=>(
+                    <div key={i} className="flex items-start gap-2.5 rounded-xl p-3 bg-red-50 border border-red-100">
+                      <span className="text-xl shrink-0">{h.emoji}</span>
+                      <div>
+                        <p className="text-xs font-black text-red-700 mb-0.5">{h.title}</p>
+                        <p className="text-[11px] leading-relaxed text-red-600">{h.detail}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
