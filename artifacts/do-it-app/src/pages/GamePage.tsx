@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PlayerCard from "../components/PlayerCard";
 import FacilitatorPanel from "../components/FacilitatorPanel";
 
-const API = `${import.meta.env.BASE_URL}api`;
+const API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
 
 type BoardColor = "merah" | "biru" | "kuning" | "hijau";
 type ActionChoice = "upgrade" | "social" | "expand";
