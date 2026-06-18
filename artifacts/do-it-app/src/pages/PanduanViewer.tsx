@@ -39,7 +39,7 @@ export default function PanduanViewer() {
         </div>
 
         <a
-          href="/panduan.pdf"
+          href={`${import.meta.env.BASE_URL}panduan.pdf`}
           download="Panduan-DO-IT.pdf"
           style={{
             padding: "8px 14px", borderRadius: 10,
@@ -56,7 +56,7 @@ export default function PanduanViewer() {
 
       {/* PDF embed */}
       <iframe
-        src="/panduan.pdf#toolbar=1&navpanes=0&scrollbar=1"
+        src={`${import.meta.env.BASE_URL}panduan.pdf#toolbar=1&navpanes=0&scrollbar=1`}
         title="Panduan Permainan DO IT"
         style={{
           flex: 1, width: "100%", border: "none",

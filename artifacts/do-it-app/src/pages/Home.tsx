@@ -32,7 +32,7 @@ export default function Home() {
 
       {/* ── HERO ── */}
       <div className="anim-hero" style={{ position:"relative", overflow:"hidden" }}>
-        <img src="/hero-bg.png" alt="DO IT hero" style={{ width:"100%", display:"block" }}/>
+        <img src={`${import.meta.env.BASE_URL}hero-bg.png`} alt="DO IT hero" style={{ width:"100%", display:"block" }}/>
 
         {/* Bottom gradient fade */}
         <div style={{
