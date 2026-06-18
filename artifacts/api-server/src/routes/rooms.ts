@@ -21,11 +21,16 @@ interface CafeSlot {
 interface PlayerAreaLevel { area: BoardColor; level: number; }
 interface CustomerInput { area: BoardColor; menuSought: MenuType[]; customerCount: number; playerId: string; }
 interface PendingBid {
-  cafeId: string; bidderId: string; cafeName: string; openPrice: number;
-  responses: { playerId: string; accepted: boolean }[];
-  status: "pending" | "accepted" | "rejected";
-  respondOrder: string[];       // player IDs in turn order (excl. bidder)
-  currentRespondIndex: number;  // index into respondOrder
+  cafeId: string;
+  expanderId: string;           // player who chose expand (opens the auction)
+  cafeName: string;
+  buyoutPrice: number;          // 3× opening price – only expanderId can use
+  currentPrice: number;         // current highest offer
+  currentHighBidderId: string;  // who currently holds the highest bid
+  activePlayers: string[];      // players still in the auction (haven't passed)
+  turnOrder: string[];          // circular order starting from player after expander
+  currentTurnPlayerId: string;  // whose turn it is
+  status: "pending" | "sold";
 }
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
 type Medal = MenuType;
@@ -597,29 +602,37 @@ router.post("/rooms/:code/action", (req, res) => {
       emptySlot.bidPrice = bPrice; emptySlot.buyoutPrice = buyoutP;
       emptySlot.menuItems = expandSpecs.menuItems || []; emptySlot.seats = expandSpecs.seats || 2;
       emptySlot.name = expandSpecs.name || `Kafe ${targetArea} #${emptySlot.slotIndex}`;
-      const nonBidders = room.players.filter(p => p.id !== playerId);
-      if (nonBidders.length === 0) {
-        if (currentPlayer.money < oPrice) { const diff=oPrice-currentPlayer.money; const units=Math.ceil(diff/3); currentPlayer.hutang+=units*3; currentPlayer.kap.bersediaRisiko=Math.min(7,currentPlayer.kap.bersediaRisiko+1); currentPlayer.money=0; }
+      if (room.players.length === 1) {
+        // Solo: expander wins immediately, pays bank
+        if (currentPlayer.money < oPrice) { const diff=oPrice-currentPlayer.money; const units=Math.ceil(diff/3); currentPlayer.hutang+=units*3; currentPlayer.kap.bersediaRisiko=Math.min(7,currentPlayer.kap.bersediaRisiko+1); currentPlayer.money=Math.max(0,currentPlayer.money+units*3-oPrice); }
         else { currentPlayer.money -= oPrice; }
         emptySlot.ownerId = playerId; emptySlot.isSetup = true;
-        addTx(currentPlayer, `Open Bid berhasil: ${emptySlot.name}`, oPrice, "pengeluaran", room.currentRonde);
+        addTx(currentPlayer, `Buka Bid (solo): ${emptySlot.name}`, oPrice, "pengeluaran", room.currentRonde);
+        currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
       } else {
-        // Build respond order in turn order starting from player after bidder
-        const bidderTurnIdx = room.players.findIndex(p => p.id === playerId);
-        const respondOrder: string[] = [];
+        // Build turn order starting from player after expander (circular), expander at end
+        const expanderIdx = room.players.findIndex(p => p.id === playerId);
+        const turnOrder: string[] = [];
         for (let i = 1; i < room.players.length; i++) {
-          respondOrder.push(room.players[(bidderTurnIdx + i) % room.players.length].id);
+          turnOrder.push(room.players[(expanderIdx + i) % room.players.length].id);
         }
+        turnOrder.push(playerId); // expander gets a turn too
         room.pendingBid = {
-          cafeId: emptySlot.id, bidderId: playerId, cafeName: emptySlot.name,
-          openPrice: oPrice, responses: [], status: "pending",
-          respondOrder, currentRespondIndex: 0,
+          cafeId: emptySlot.id,
+          expanderId: playerId,
+          cafeName: emptySlot.name,
+          buyoutPrice: buyoutP,
+          currentPrice: oPrice,
+          currentHighBidderId: playerId,
+          activePlayers: room.players.map(p => p.id),
+          turnOrder,
+          currentTurnPlayerId: turnOrder[0],
+          status: "pending",
         };
         currentPlayer.lastAction = action;
         persist();
         res.json({ ok: true, pendingBid: true }); return;
       }
-      currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
     }
   } else { res.status(400).json({ error: "Aksi tidak valid" }); return; }
 
@@ -648,52 +661,105 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   if (!room.pendingBid || room.pendingBid.status !== "pending") { res.status(400).json({ error: "Tidak ada bidding aktif" }); return; }
-  const { playerId, accepted } = req.body as { playerId: string; accepted: boolean };
-  if (room.pendingBid.bidderId === playerId) { res.status(400).json({ error: "Kamu adalah bidder" }); return; }
+  const { playerId, action, newPrice } = req.body as { playerId: string; action: "raise" | "pass" | "buyout"; newPrice?: number };
   const bid = room.pendingBid;
-  // Sequential bidding: only current expected responder can respond
-  const expectedResponder = bid.respondOrder[bid.currentRespondIndex];
-  if (playerId !== expectedResponder) {
-    const name = room.players.find(p => p.id === expectedResponder)?.name || "pemain lain";
-    res.status(400).json({ error: `Belum giliranmu merespons. Menunggu ${name}` }); return;
+
+  if (playerId !== bid.currentTurnPlayerId) {
+    const name = room.players.find(p => p.id === bid.currentTurnPlayerId)?.name || "pemain lain";
+    res.status(400).json({ error: `Belum giliranmu. Menunggu ${name}` }); return;
   }
-  if (bid.responses.some(r => r.playerId === playerId)) { res.status(400).json({ error: "Sudah merespons" }); return; }
-  bid.responses.push({ playerId, accepted });
-  bid.currentRespondIndex++;
+  if (!bid.activePlayers.includes(playerId)) {
+    res.status(400).json({ error: "Kamu sudah keluar dari lelang ini" }); return;
+  }
 
-  const allResponded = bid.currentRespondIndex >= bid.respondOrder.length;
+  const cafe = room.cafes.find(c => c.id === bid.cafeId)!;
+  const expander = room.players.find(p => p.id === bid.expanderId)!;
 
-  if (allResponded) {
-    const acceptCount = bid.responses.filter(r => r.accepted).length;
-    const nonBidderCount = bid.respondOrder.length;
-    const majority = nonBidderCount === 0 || acceptCount > nonBidderCount / 2;
-    const cafe = room.cafes.find(c => c.id === bid.cafeId)!;
-    const bidder = room.players.find(p => p.id === bid.bidderId)!;
-    if (majority) {
-      if (bidder.money < bid.openPrice) { const diff=bid.openPrice-bidder.money; const units=Math.ceil(diff/3); bidder.hutang+=units*3; bidder.kap.bersediaRisiko=Math.min(7,bidder.kap.bersediaRisiko+units); bidder.money=Math.max(0,bidder.money+units*3-bid.openPrice); }
-      else { bidder.money -= bid.openPrice; }
-      cafe.ownerId = bid.bidderId; cafe.isSetup = true;
-      addTx(bidder, `Open Bid berhasil: ${cafe.name}`, bid.openPrice, "pengeluaran", room.currentRonde);
-      bidder.kap.internalLocus = Math.min(7, bidder.kap.internalLocus + 1);
-      bid.status = "accepted";
+  function nextActive(afterId: string): string | null {
+    const idx = bid.turnOrder.indexOf(afterId);
+    for (let i = 1; i < bid.turnOrder.length; i++) {
+      const candidate = bid.turnOrder[(idx + i) % bid.turnOrder.length];
+      if (bid.activePlayers.includes(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  function finalizeBid(winnerId: string, price: number) {
+    const r = room!;
+    const winner = r.players.find(p => p.id === winnerId)!
+    if (winnerId === bid.expanderId) {
+      // Expander wins → pays bank
+      if (winner.money < price) { const diff=price-winner.money; const units=Math.ceil(diff/3); winner.hutang+=units*3; winner.kap.bersediaRisiko=Math.min(7,winner.kap.bersediaRisiko+units); winner.money=Math.max(0,winner.money+units*3-price); }
+      else { winner.money -= price; }
+      addTx(winner, `Menang Bid: ${cafe.name}`, price, "pengeluaran", r.currentRonde);
     } else {
-      cafe.ownerId = null; cafe.isSetup = false; cafe.menuItems = []; cafe.seats = 0;
-      bid.status = "rejected";
+      // Another player wins → pays expander
+      if (winner.money < price) { const diff=price-winner.money; const units=Math.ceil(diff/3); winner.hutang+=units*3; winner.kap.bersediaRisiko=Math.min(7,winner.kap.bersediaRisiko+units); winner.money=Math.max(0,winner.money+units*3-price); }
+      else { winner.money -= price; }
+      expander.money += price;
+      addTx(winner, `Menang Bid: ${cafe.name} (bayar ke ${expander.name})`, price, "pengeluaran", r.currentRonde);
+      addTx(expander, `Cafe dibeli ${winner.name}: ${cafe.name}`, price, "pemasukan", r.currentRonde);
     }
-    bidder.lastAction = "expand";
-    room.actedThisPutaran.push(bidder.id);
-    room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
-    const actedCount = room.actedThisPutaran.filter(x=>!x.includes("_")).length;
-    if (actedCount >= room.players.length) {
-      if (room.currentPutaran === 1) { room.currentPutaran=2; room.actedThisPutaran=[]; room.currentTurnIndex=(room.currentRonde-1)%room.players.length; room.players.forEach(p=>{p.lastAction=null;}); }
-      else if (room.currentPutaran === 2) { room.phase="lembur_offer"; room.actedThisPutaran=[]; }
-      else { room.phase="customer_input"; room.actedThisPutaran=[]; }
+    cafe.ownerId = winnerId; cafe.isSetup = true;
+    bid.currentHighBidderId = winnerId;
+    bid.status = "sold";
+    expander.kap.internalLocus = Math.min(7, expander.kap.internalLocus + 1);
+    expander.lastAction = "expand";
+    r.actedThisPutaran.push(expander.id);
+    r.currentTurnIndex = (r.currentTurnIndex + 1) % r.players.length;
+    const actedCount = r.actedThisPutaran.filter(x => !x.includes("_")).length;
+    if (actedCount >= r.players.length) {
+      if (r.currentPutaran === 1) { r.currentPutaran=2; r.actedThisPutaran=[]; r.currentTurnIndex=(r.currentRonde-1)%r.players.length; r.players.forEach(p=>{p.lastAction=null;}); }
+      else if (r.currentPutaran === 2) { r.phase="lembur_offer"; r.actedThisPutaran=[]; }
+      else { r.phase="customer_input"; r.actedThisPutaran=[]; }
     }
-    setTimeout(() => { if (room.pendingBid?.status !== "pending") room.pendingBid = null; persist(); }, 5000);
-    processBotTurns(room);
+    setTimeout(() => { if (r.pendingBid?.status !== "pending") r.pendingBid = null; persist(); }, 5000);
+    processBotTurns(r);
     persist();
   }
-  res.json({ ok: true, status: room.pendingBid?.status || "pending", currentRespondIndex: bid.currentRespondIndex, respondOrder: bid.respondOrder });
+
+  if (action === "buyout") {
+    if (playerId !== bid.expanderId) { res.status(403).json({ error: "Buy Out hanya untuk pemain yang membuka Expand" }); return; }
+    finalizeBid(bid.expanderId, bid.buyoutPrice);
+    res.json({ ok: true, status: "sold", winner: bid.expanderId });
+    return;
+  }
+
+  if (action === "raise") {
+    const price = Number(newPrice);
+    if (!price || price <= bid.currentPrice) { res.status(400).json({ error: `Harga harus lebih tinggi dari Rp.${bid.currentPrice}` }); return; }
+    bid.currentPrice = price;
+    bid.currentHighBidderId = playerId;
+    const next = nextActive(playerId);
+    if (!next || next === playerId) {
+      finalizeBid(playerId, price);
+      res.json({ ok: true, status: "sold" });
+    } else {
+      bid.currentTurnPlayerId = next;
+      persist();
+      res.json({ ok: true, status: "pending" });
+    }
+    return;
+  }
+
+  if (action === "pass") {
+    const next = nextActive(playerId); // find next before removing self
+    bid.activePlayers = bid.activePlayers.filter(id => id !== playerId);
+    if (bid.activePlayers.length <= 1) {
+      finalizeBid(bid.activePlayers[0] ?? bid.currentHighBidderId, bid.currentPrice);
+      res.json({ ok: true, status: "sold" });
+    } else if (!next || !bid.activePlayers.includes(next)) {
+      finalizeBid(bid.currentHighBidderId, bid.currentPrice);
+      res.json({ ok: true, status: "sold" });
+    } else {
+      bid.currentTurnPlayerId = next;
+      persist();
+      res.json({ ok: true, status: "pending" });
+    }
+    return;
+  }
+
+  res.status(400).json({ error: "Aksi tidak valid (raise / pass / buyout)" });
 });
 
 router.post("/rooms/:code/lembur", (req, res) => {
