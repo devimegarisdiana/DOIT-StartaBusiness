@@ -182,7 +182,9 @@ function assignMedals(room: Room) {
 
 function calculateFinalKAP(player: Player): number {
   const k = player.kap;
-  return k.kreativitas + k.socialNetworking + k.internalLocus + k.toleransiAmbiguitas + k.bersediaRisiko + (player.csrKAP || 0) + (player.medalKAP || 0);
+  const base = k.kreativitas + k.socialNetworking + k.internalLocus + k.toleransiAmbiguitas + k.bersediaRisiko + (player.csrKAP || 0) + (player.medalKAP || 0);
+  const ambPenalty = k.toleransiAmbiguitas >= 7 ? 3 : k.toleransiAmbiguitas >= 4 ? 2 : k.toleransiAmbiguitas >= 2 ? 1 : 0;
+  return base - ambPenalty;
 }
 
 function advanceRonde(room: Room) {
