@@ -1489,6 +1489,117 @@ export default function GamePage() {
             </div>
           )}
 
+          {/* ── RESUME WIRAUSAHA (fase finished) ── */}
+          {room.phase==="finished"&&(()=>{
+            const kap=myPlayer.kap;
+            const txs=myPlayer.transactions;
+            const countTx=(kw:string)=>txs.filter(t=>t.keterangan.toLowerCase().includes(kw.toLowerCase())).length;
+            const pinjaCount=countTx("Pinjam Bank");
+            const bayarCount=countTx("Bayar Hutang");
+            const csrCount=countTx("CSR");
+            const lemburCount=countTx("Lembur");
+            const bidCount=countTx("Open Bid");
+            const buyOutCount=countTx("Buy Out");
+            const upgradeCount=countTx("Upgrade");
+            const hutangSocialCount=countTx("Hutang Social");
+            const totalKAP=myPlayer.finalKAP??myPlayer.kapScore??0;
+
+            // Profil wirausaha berdasarkan dimensi KAP dominan
+            const maxVal=Math.max(kap.kreativitas,kap.socialNetworking,kap.internalLocus,kap.bersediaRisiko);
+            let archetype="Wirausaha Pemula",archetypeEmoji="🌱",archetypeColor="#6b7280";
+            if(kap.kreativitas>=maxVal&&kap.kreativitas>=3){archetype="Wirausaha Inovatif";archetypeEmoji="💡";archetypeColor="#2478d4";}
+            else if(kap.socialNetworking>=maxVal&&kap.socialNetworking>=3){archetype="Wirausaha Kolaboratif";archetypeEmoji="🤝";archetypeColor="#28a745";}
+            else if(kap.bersediaRisiko>=maxVal&&kap.bersediaRisiko>=3){archetype="Wirausaha Pemberani";archetypeEmoji="🎯";archetypeColor="#e84393";}
+            else if(kap.internalLocus>=maxVal&&kap.internalLocus>=3){archetype="Wirausaha Percaya Diri";archetypeEmoji="💪";archetypeColor="#9b59b6";}
+            else if(totalKAP>=15){archetype="Wirausaha Serba Bisa";archetypeEmoji="⭐";archetypeColor="#f0a020";}
+
+            type KE={label:string;value:number;max:number;color:string;high:string;mid:string;low:string};
+            const kapEntries:KE[]=[
+              {label:"Kreativitas",value:kap.kreativitas,max:7,color:"#2478d4",
+                high:"Kamu aktif berinovasi — terus mengembangkan produk & layanan cafe. Jiwa wirausaha yang tidak pernah puas dengan status quo.",
+                mid:"Kamu cukup kreatif — berinovasi di waktu yang tepat tanpa berlebihan.",
+                low:"Kamu lebih fokus pada stabilitas operasional. Coba lebih berani bereksperimen dengan produk baru!"},
+              {label:"Social Networking",value:kap.socialNetworking,max:7,color:"#28a745",
+                high:"Networker handal — rajin membangun relasi & memperluas jangkauan ke area lain. Koneksi kuat = peluang bisnis lebih luas.",
+                mid:"Kemampuan jaringan yang cukup baik, dimanfaatkan di momen kunci.",
+                low:"Cenderung bekerja mandiri. Cobalah lebih aktif membangun jaringan untuk membuka peluang baru."},
+              {label:"Locus of Control",value:kap.internalLocus,max:7,color:"#9b59b6",
+                high:"Percaya pada kemampuan diri — mengambil keputusan ekspansi dengan keyakinan penuh tanpa menunggu kondisi sempurna.",
+                mid:"Cukup percaya diri dalam mengambil keputusan bisnis penting.",
+                low:"Masih perlu meningkatkan kepercayaan diri. Wirausaha sukses percaya bisa mengendalikan nasib bisnisnya sendiri."},
+              {label:"Toleransi Ambiguitas",value:kap.toleransiAmbiguitas,max:7,color:"#f0a020",
+                high:"Kamu sering mengikuti keputusan pemain lain (FOMO). Penting untuk mengembangkan strategi orisinal yang tidak bergantung pada gerak kompetitor.",
+                mid:"Kadang mengikuti tren pasar, namun masih punya strategi sendiri.",
+                low:"Mandiri dalam strategi — tidak mudah terpengaruh keputusan pemain lain. Toleransi ambiguitas yang baik!"},
+              {label:"Bersedia Risiko",value:kap.bersediaRisiko,max:5,color:"#e84393",
+                high:"Berani mengambil risiko terukur — menggunakan leverage untuk mendanai ekspansi. Keberanian wirausaha yang sesungguhnya.",
+                mid:"Cukup berani menanggung risiko saat situasi membutuhkan.",
+                low:"Konservatif dalam manajemen risiko — lebih memilih stabilitas. Wirausaha terkadang perlu berani berspekulasi untuk tumbuh."},
+            ];
+            const getLevel=(v:number,mx:number)=>v/mx>=0.6?"high":v/mx>=0.3?"mid":"low";
+
+            type HL={emoji:string;text:string;pos:boolean};
+            const hl:HL[]=[];
+            if(pinjaCount>0&&bayarCount>0)hl.push({emoji:"💰",text:`Berhutang ${pinjaCount}× dan melunasi ${bayarCount}× — keberanian mengambil keputusan terukur dengan perencanaan yang matang.`,pos:true});
+            else if(pinjaCount>0)hl.push({emoji:"⚠️",text:`Berhutang ${pinjaCount}× tanpa pelunasan — perlu lebih disiplin dalam manajemen keuangan jangka panjang.`,pos:false});
+            if(csrCount>0)hl.push({emoji:"🌍",text:`Aktif CSR sebanyak ${csrCount}× — mencerminkan kesadaran tanggung jawab sosial yang tinggi sebagai wirausaha.`,pos:true});
+            if(lemburCount>0)hl.push({emoji:"⚡",text:`Lembur ${lemburCount}× saat dibutuhkan — tidak segan kerja ekstra untuk mempertahankan momentum bisnis.`,pos:true});
+            if(bidCount+buyOutCount>0)hl.push({emoji:"🏪",text:`Ekspansi agresif — membuka ${bidCount+buyOutCount} cafe baru via bidding/buy out. Jiwa ekspansif yang kuat.`,pos:true});
+            if(upgradeCount>0)hl.push({emoji:"🔧",text:`${upgradeCount}× upgrade produk — komitmen terhadap peningkatan kualitas layanan secara berkelanjutan.`,pos:true});
+            if(hutangSocialCount>0)hl.push({emoji:"🎲",text:`Berani berhutang untuk aksi Social ${hutangSocialCount}× — berani investasi membangun jaringan meski belum cukup modal.`,pos:true});
+            if(hl.length===0)hl.push({emoji:"📝",text:"Bermain dengan hati-hati dan terstruktur sepanjang permainan.",pos:true});
+
+            return (
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-1"><span className="text-2xl">📋</span><h3 className="font-black text-gray-800 text-base">Resume Wirausahamu</h3></div>
+                <p className="text-xs text-gray-400 mb-4">Analisis gaya wirausaha <strong>{myPlayer.name}</strong> berdasarkan keputusan sepanjang permainan.</p>
+
+                {/* Archetype */}
+                <div className="rounded-2xl p-4 mb-4 text-center" style={{ background:`linear-gradient(135deg,${archetypeColor}18,${archetypeColor}08)`, border:`2px solid ${archetypeColor}35` }}>
+                  <div className="text-4xl mb-1">{archetypeEmoji}</div>
+                  <div className="font-black text-lg mb-0.5" style={{ color:archetypeColor }}>{archetype}</div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-2">Profil Wirausahamu</div>
+                  <div className="inline-flex items-center gap-1.5 bg-white rounded-full px-3 py-1 shadow-sm border">
+                    <span className="text-xs font-bold text-gray-500">Total KAP</span>
+                    <span className="text-base font-black" style={{ color:archetypeColor }}>{totalKAP}</span>
+                  </div>
+                </div>
+
+                {/* Per-dimensi KAP */}
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Analisis per Dimensi KAP</p>
+                <div className="flex flex-col gap-2.5 mb-4">
+                  {kapEntries.map(e=>{
+                    const lvl=getLevel(e.value,e.max);
+                    const pct=Math.round((e.value/e.max)*100);
+                    return (
+                      <div key={e.label} className="bg-gray-50 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-black text-gray-700">{e.label}</span>
+                          <span className="text-xs font-black" style={{ color:e.color }}>{e.value}/{e.max}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                          <div className="h-1.5 rounded-full" style={{ width:`${pct}%`, background:e.color }}/>
+                        </div>
+                        <p className="text-[11px] text-gray-600 leading-relaxed">{lvl==="high"?e.high:lvl==="mid"?e.mid:e.low}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Behavioral highlights */}
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sorotan Keputusan Sepanjang Permainan</p>
+                <div className="flex flex-col gap-2">
+                  {hl.map((h,i)=>(
+                    <div key={i} className="flex items-start gap-2 rounded-xl p-2.5" style={{ background:h.pos?"#f0fdf4":"#fef2f2" }}>
+                      <span className="text-base shrink-0 mt-0.5">{h.emoji}</span>
+                      <p className="text-[11px] leading-relaxed" style={{ color:h.pos?"#15803d":"#b91c1c" }}>{h.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── KAP Tracker ── */}
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <h3 className="font-black text-gray-700 text-sm mb-3">📊 KAP Tracker</h3>
