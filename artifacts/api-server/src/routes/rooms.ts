@@ -95,6 +95,19 @@ function persist() {
   saveRoomsToDisk(rooms);
 }
 
+// Sync in-memory state from disk before every request so multiple
+// Passenger workers (or process restarts) always see the latest data.
+router.use((_req, _res, next) => {
+  try {
+    const fresh = loadRoomsFromDisk();
+    for (const [code, room] of fresh) rooms.set(code, room);
+    for (const code of rooms.keys()) {
+      if (!fresh.has(code)) rooms.delete(code);
+    }
+  } catch { /* ignore */ }
+  next();
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function generateId(): string {
