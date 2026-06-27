@@ -183,8 +183,12 @@ function assignMedals(room: Room) {
 function calculateFinalKAP(player: Player): number {
   const k = player.kap;
   const base = k.kreativitas + k.socialNetworking + k.internalLocus + k.toleransiAmbiguitas + k.bersediaRisiko + (player.csrKAP || 0) + (player.medalKAP || 0);
-  const ambPenalty = k.toleransiAmbiguitas >= 7 ? 3 : k.toleransiAmbiguitas >= 4 ? 2 : k.toleransiAmbiguitas >= 2 ? 1 : 0;
-  return base - ambPenalty;
+  // Bonus KAP dari papan — milestone tiap dimensi
+  const kreBonus = k.kreativitas>=7?4 : k.kreativitas>=5?3 : k.kreativitas>=4?2 : k.kreativitas>=3?1 : 0;
+  const socBonus = k.socialNetworking>=7?3 : k.socialNetworking>=5?2 : k.socialNetworking>=3?1 : 0;
+  const locBonus = k.internalLocus>=7?4 : k.internalLocus>=5?3 : k.internalLocus>=3?2 : 0;
+  const ambPenalty = k.toleransiAmbiguitas>=7?3 : k.toleransiAmbiguitas>=4?2 : k.toleransiAmbiguitas>=2?1 : 0;
+  return base + kreBonus + socBonus + locBonus - ambPenalty;
 }
 
 function advanceRonde(room: Room) {
@@ -520,11 +524,13 @@ router.post("/rooms/:code/action", (req, res) => {
   }
 
   if (action === "upgrade") {
-    const cost = Number(upgradeCost) || 0;
-    if (cost > 0 && currentPlayer.money < cost) {
-      res.status(400).json({ error: `Uang tidak cukup untuk biaya upgrade (Rp.${cost})` }); return;
+    // Harga upgrade = level Kreativitas yang akan dicapai (sesuai papan)
+    const newKreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
+    const cost = newKreativitas;
+    if (currentPlayer.money < cost) {
+      res.status(400).json({ error: `Uang tidak cukup untuk upgrade ke level ${newKreativitas} (Rp.${cost})` }); return;
     }
-    currentPlayer.kap.kreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
+    currentPlayer.kap.kreativitas = newKreativitas;
     const cafe = cafeId ? room.cafes.find(c => c.id === cafeId && c.ownerId === playerId) : null;
     if (!cafe) { res.status(400).json({ error: "Cafe tidak ditemukan atau bukan milikmu" }); return; }
     if (upgradeType === "add_menu") {
@@ -551,11 +557,8 @@ router.post("/rooms/:code/action", (req, res) => {
       if (destItem) destItem.count += 1;
       else targetCafe.menuItems.push({ type: menuType, count: 1, price: cafe.menuItems.find(m=>m.type===menuType)?.price || { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
     }
-    // Deduct upgrade cost and record transaction
-    if (cost > 0) {
-      currentPlayer.money -= cost;
-      addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
-    }
+    currentPlayer.money -= cost;
+    addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
   } else if (action === "social") {
     if (!area) { res.status(400).json({ error: "Pilih area" }); return; }
     currentPlayer.kap.socialNetworking = Math.min(7, currentPlayer.kap.socialNetworking + 1);

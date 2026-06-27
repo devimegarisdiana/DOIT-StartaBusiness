@@ -1021,13 +1021,9 @@ export default function GamePage() {
                   {actionStep?.action==="upgrade"&&actionStep.step==="select_type"&&(
                     <div className="bg-white rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-3"><button onClick={()=>setActionStep({action:"upgrade",step:"select_cafe"})} className="text-gray-400 text-xl">‹</button><h3 className="font-black text-blue-700 text-base">⬆️ {actionStep.cafeName}</h3></div>
-                      <div className="mb-3">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Biaya Upgrade (dari papan)</label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-gray-500 text-sm">Rp</span>
-                          <input type="number" min="0" value={upgradeCost} onChange={e=>setUpgradeCost(e.target.value)} placeholder="0"
-                            className="flex-1 border-2 border-blue-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-blue-400"/>
-                        </div>
+                      <div className="bg-blue-50 rounded-xl px-3 py-2 mb-3 flex justify-between items-center">
+                        <span className="text-xs text-blue-600 font-bold">Biaya Upgrade (otomatis)</span>
+                        <span className="text-sm font-black text-blue-700">Rp.{Math.min(7, myPlayer.kap.kreativitas+1)}</span>
                       </div>
                       <div className="flex flex-col gap-2">
                         {[
@@ -1037,7 +1033,7 @@ export default function GamePage() {
                           {type:"move" as const,icon:"↔️",label:"Pindahkan Menu",desc:"Pindahkan menu ke cafe lain milikmu"},
                         ].map(opt=>(
                           <button key={opt.type} onClick={()=>{
-                            if(opt.type==="add_seats"){submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"add_seats",upgradeCost:parseFloat(upgradeCost)||0});}
+                            if(opt.type==="add_seats"){submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"add_seats"});}
                             else setActionStep({action:"upgrade",step:"select_menu",cafeId:actionStep.cafeId,upgradeType:opt.type,cafeName:actionStep.cafeName});
                           }} className="p-3 rounded-xl flex items-center gap-3 border-2 border-blue-100 active:scale-95 bg-blue-50">
                             <span className="text-2xl">{opt.icon}</span>
@@ -1062,7 +1058,7 @@ export default function GamePage() {
                             <button key={mt} disabled={!!disabled}
                               onClick={()=>{
                                 if(actionStep.upgradeType==="move")setActionStep({action:"upgrade",step:"select_move_target",cafeId:actionStep.cafeId,menuType:mt});
-                                else submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:actionStep.upgradeType,menuType:mt,upgradeCost:parseFloat(upgradeCost)||0});
+                                else submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:actionStep.upgradeType,menuType:mt});
                               }}
                               className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 border-blue-100 active:scale-95 disabled:opacity-30"
                               style={{ background:disabled?"#f5f5f5":"#eff6ff" }}>
@@ -1083,7 +1079,7 @@ export default function GamePage() {
                           {myCafes.filter(c=>c.id!==actionStep.cafeId).map(c=>{
                             const cbc=bcInfo(c.area);
                             return (
-                              <button key={c.id} onClick={()=>submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"move",menuType:actionStep.menuType,targetCafeId:c.id,upgradeCost:parseFloat(upgradeCost)||0})}
+                              <button key={c.id} onClick={()=>submitAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"move",menuType:actionStep.menuType,targetCafeId:c.id})}
                                 className="p-3 rounded-xl flex items-center gap-3 border-2 active:scale-95" style={{ background:cbc.bg, borderColor:cbc.text+"40" }}>
                                 <span className="text-2xl">{cbc.emoji}</span>
                                 <div className="flex-1 text-left">
