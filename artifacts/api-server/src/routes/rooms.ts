@@ -531,9 +531,6 @@ router.post("/rooms/:code/action", (req, res) => {
     // Harga upgrade = level Kreativitas yang akan dicapai (sesuai papan)
     const newKreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
     const cost = newKreativitas;
-    if (currentPlayer.money < cost) {
-      res.status(400).json({ error: `Uang tidak cukup untuk upgrade ke level ${newKreativitas} (Rp.${cost})` }); return;
-    }
     currentPlayer.kap.kreativitas = newKreativitas;
     const cafe = cafeId ? room.cafes.find(c => c.id === cafeId && c.ownerId === playerId) : null;
     if (!cafe) { res.status(400).json({ error: "Cafe tidak ditemukan atau bukan milikmu" }); return; }
@@ -561,20 +558,30 @@ router.post("/rooms/:code/action", (req, res) => {
       if (destItem) destItem.count += 1;
       else targetCafe.menuItems.push({ type: menuType, count: 1, price: cafe.menuItems.find(m=>m.type===menuType)?.price || { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
     }
-    currentPlayer.money -= cost;
-    addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
+    if (currentPlayer.money < cost) {
+      const diff = cost - currentPlayer.money;
+      const units = Math.ceil(diff / 3);
+      currentPlayer.hutang += units * 3;
+      currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + units);
+      currentPlayer.money = Math.max(0, currentPlayer.money + units * 3 - cost);
+      addTx(currentPlayer, `Hutang Upgrade (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
+    } else {
+      currentPlayer.money -= cost;
+      addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
+    }
   } else if (action === "social") {
     if (!area) { res.status(400).json({ error: "Pilih area" }); return; }
     currentPlayer.kap.socialNetworking = Math.min(7, currentPlayer.kap.socialNetworking + 1);
     const level = currentPlayer.kap.socialNetworking;
     const cost = level;
-    if (hutang) {
-      const units = Math.ceil(cost / 3);
+    if (currentPlayer.money < cost) {
+      const diff = cost - currentPlayer.money;
+      const units = Math.ceil(diff / 3);
       currentPlayer.hutang += units * 3;
       currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + units);
-      addTx(currentPlayer, `Hutang Social (${area} lv${level}) ${units}×Rp.3`, units * 3, "pengeluaran", room.currentRonde);
+      currentPlayer.money = Math.max(0, currentPlayer.money + units * 3 - cost);
+      addTx(currentPlayer, `Hutang Social – Area ${area} (lv${level})`, cost, "pengeluaran", room.currentRonde);
     } else {
-      if (currentPlayer.money < cost) { res.status(400).json({ error: "Uang tidak cukup" }); return; }
       currentPlayer.money -= cost;
       addTx(currentPlayer, `Social – Area ${area} (lv${level})`, cost, "pengeluaran", room.currentRonde);
     }
@@ -775,9 +782,19 @@ router.post("/rooms/:code/lembur", (req, res) => {
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
   if (lembur) {
-    if (player.money < 5) { res.status(400).json({ error: "Uang tidak cukup (Rp.5)" }); return; }
-    player.money -= 5; player.lemburThisRound = true;
-    addTx(player, `Lembur Ronde ${room.currentRonde}`, 5, "pengeluaran", room.currentRonde);
+    const lemburCost = 5;
+    if (player.money < lemburCost) {
+      const diff = lemburCost - player.money;
+      const units = Math.ceil(diff / 3);
+      player.hutang += units * 3;
+      player.kap.bersediaRisiko = Math.min(7, player.kap.bersediaRisiko + units);
+      player.money = Math.max(0, player.money + units * 3 - lemburCost);
+      addTx(player, `Hutang Lembur Ronde ${room.currentRonde}`, lemburCost, "pengeluaran", room.currentRonde);
+    } else {
+      player.money -= lemburCost;
+      addTx(player, `Lembur Ronde ${room.currentRonde}`, lemburCost, "pengeluaran", room.currentRonde);
+    }
+    player.lemburThisRound = true;
   }
   room.actedThisPutaran.push(playerId + "_lembur");
   if (room.players.every(p => room.actedThisPutaran.includes(p.id + "_lembur"))) {

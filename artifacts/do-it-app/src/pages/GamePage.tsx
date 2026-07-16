@@ -186,7 +186,7 @@ export default function GamePage() {
 
   // Action flow
   const [actionStep, setActionStep] = useState<ActionStep>(null);
-  const [pendingHutangAction, setPendingHutangAction] = useState<null|{body:Record<string,unknown>,cost:number,desc:string}>(null);
+  const [_pendingHutangAction, _setPendingHutangAction] = useState<null|{body:Record<string,unknown>,cost:number,desc:string}>(null);
   const [showFacilitatorPanel, setShowFacilitatorPanel] = useState(false);
   // Expand specs form
   const [expandBidPrice, setExpandBidPrice] = useState("");
@@ -341,7 +341,7 @@ export default function GamePage() {
     setLoading(true); setErr("");
     try {
       await post("/action",body);
-      setActionStep(null); setPendingHutangAction(null);
+      setActionStep(null);
       setExpandBidPrice(""); setExpandMenuItems([]); setExpandSeats("2"); setExpandCafeName("");
       setUpgradeCost(""); setBidRaiseAmount("");
     } catch(e:unknown){ setErr(e instanceof Error?e.message:"Error"); }
@@ -363,9 +363,8 @@ export default function GamePage() {
     finally { setLoading(false); }
   }
 
-  function tryAction(body: Record<string,unknown>, cost: number, desc: string) {
-    if (!myPlayer || myPlayer.money >= cost) { submitAction(body); }
-    else { setPendingHutangAction({ body, cost, desc }); }
+  function tryAction(body: Record<string,unknown>, _cost: number, _desc: string) {
+    submitAction(body);
   }
 
   const myPlayer = room?.players.find(p=>p.id===myId);
@@ -676,49 +675,8 @@ export default function GamePage() {
 
     return (
       <div className="flex flex-col flex-1 overflow-hidden relative" style={{ background:"#d6eeff" }}>
-        {/* ── HUTANG CONFIRMATION MODAL ── */}
         {showFacilitatorPanel&&myId&&room&&(
           <FacilitatorPanel roomCode={room.code} myId={myId} onClose={()=>setShowFacilitatorPanel(false)}/>
-        )}
-        {pendingHutangAction&&(
-          <div className="absolute inset-0 z-50 flex items-end" style={{ background:"rgba(0,0,0,0.55)" }} onClick={()=>setPendingHutangAction(null)}>
-            <div className="w-full bg-white rounded-t-3xl p-5 shadow-2xl" onClick={e=>e.stopPropagation()}>
-              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4"/>
-              <div className="text-center mb-3">
-                <div className="text-3xl mb-1">⚠️</div>
-                <h3 className="font-black text-gray-800 text-lg">Uang Tidak Cukup</h3>
-                <p className="text-xs text-gray-500 mt-1">{pendingHutangAction.desc}</p>
-              </div>
-              <div className="bg-red-50 rounded-2xl p-3 mb-3">
-                <div className="flex justify-between text-sm mb-1"><span className="text-gray-500">Butuh</span><span className="font-black text-red-600">Rp.{pendingHutangAction.cost}</span></div>
-                <div className="flex justify-between text-sm mb-1"><span className="text-gray-500">Uangmu</span><span className="font-black text-gray-700">Rp.{myPlayer?.money||0}</span></div>
-                <div className="flex justify-between text-sm border-t border-red-100 pt-1 mt-1"><span className="text-gray-500">Kurang</span><span className="font-black text-red-500">Rp.{Math.max(0,pendingHutangAction.cost-(myPlayer?.money||0))}</span></div>
-              </div>
-              {(()=>{const units=Math.ceil(pendingHutangAction.cost/3);return(
-                <div className="bg-orange-50 rounded-2xl p-3 mb-4 border border-orange-200">
-                  <p className="text-xs font-black text-orange-700 mb-1">💳 Jika memilih hutang:</p>
-                  <p className="text-xs text-gray-600">• Pinjam <strong>{units} tingkatan × Rp.3 = +Rp.{units*3}</strong> kas</p>
-                  <p className="text-xs text-gray-600">• Bersedia Risiko <strong>+{units}</strong></p>
-                  <p className="text-xs text-gray-500">• Bayar nanti: Rp.{units*4} per tingkatan (total Rp.{units*4})</p>
-                </div>
-              )})()}
-              <div className="flex flex-col gap-2">
-                <button onClick={()=>submitAction({...pendingHutangAction.body,hutang:true})} disabled={loading}
-                  className="w-full py-3.5 rounded-2xl font-black text-sm text-white disabled:opacity-50 active:scale-95"
-                  style={{ background:"#ea580c" }}>
-                  {loading?"...":"💰 Ya, Gunakan Hutang"}
-                </button>
-                <button onClick={()=>{setPendingHutangAction(null);setActionStep(null);}}
-                  className="w-full py-3.5 rounded-2xl font-black text-sm bg-gray-100 text-gray-600 active:scale-95">
-                  ↩ Pilih Aksi Lain
-                </button>
-                <button onClick={()=>setPendingHutangAction(null)}
-                  className="w-full py-2 rounded-2xl text-xs font-bold text-gray-400 active:scale-95">
-                  Batal (lanjut pilih area)
-                </button>
-              </div>
-            </div>
-          </div>
         )}
         {/* Top Bar */}
         <div className="flex-shrink-0" style={{ background:"#1a3a6b" }}>
