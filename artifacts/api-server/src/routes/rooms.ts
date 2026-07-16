@@ -182,13 +182,17 @@ function assignMedals(room: Room) {
 
 function calculateFinalKAP(player: Player): number {
   const k = player.kap;
-  const base = k.kreativitas + k.socialNetworking + k.internalLocus + k.toleransiAmbiguitas + k.bersediaRisiko + (player.csrKAP || 0) + (player.medalKAP || 0);
-  // Bonus KAP dari papan — milestone tiap dimensi
+  // KAP dasar: hanya dari CSR dan medali — level dimensi BUKAN langsung KAP
+  const base = (player.csrKAP || 0) + (player.medalKAP || 0);
+  // Bonus trofi dari papan (milestone per dimensi)
   const kreBonus = k.kreativitas>=7?4 : k.kreativitas>=5?3 : k.kreativitas>=4?2 : k.kreativitas>=3?1 : 0;
   const socBonus = k.socialNetworking>=7?3 : k.socialNetworking>=5?2 : k.socialNetworking>=3?1 : 0;
   const locBonus = k.internalLocus>=7?4 : k.internalLocus>=5?3 : k.internalLocus>=3?2 : 0;
   const ambPenalty = k.toleransiAmbiguitas>=7?3 : k.toleransiAmbiguitas>=4?2 : k.toleransiAmbiguitas>=2?1 : 0;
-  return base + kreBonus + socBonus + locBonus - ambPenalty;
+  // Hutang: setiap level hutang (Rp.3/level) yg belum dibayar = -1 KAP
+  // player.hutang disimpan dalam Rupiah, jadi dibagi 3 untuk dapat jumlah level
+  const hutangPenalty = Math.floor((player.hutang || 0) / 3);
+  return base + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty;
 }
 
 function advanceRonde(room: Room) {

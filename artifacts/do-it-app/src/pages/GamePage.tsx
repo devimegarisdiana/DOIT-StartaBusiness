@@ -1498,7 +1498,7 @@ export default function GamePage() {
                 <p className="text-[10px] text-gray-600">• Uang saat ini: {formatRp(myPlayer.money)}</p>
                 <p className="text-[10px] text-gray-600">• + Hasil penjualan cafe</p>
                 <p className="text-[10px] text-gray-600">• ÷ 10 = KAP dari uang</p>
-                {myPlayer.hutang>0&&<p className="text-[10px] text-red-500">• Hutang belum lunas: -{myPlayer.kap.bersediaRisiko} KAP (Bersedia Risiko lv{myPlayer.kap.bersediaRisiko})</p>}
+                {myPlayer.hutang>0&&<p className="text-[10px] text-red-500">• Hutang belum lunas: Rp.{myPlayer.hutang} = -{Math.floor(myPlayer.hutang/3)} KAP</p>}
               </div>
               {myCafes.length>0&&(
                 <div className="bg-gray-50 rounded-xl p-3 mb-3">
