@@ -948,14 +948,15 @@ export default function GamePage() {
                       catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
                       finally{setLoading(false);setCsrManualAmount("");setCsrManualKap("");}
                     }} disabled={loading||(!csrManualAmount&&!csrManualKap)}
-                      className="w-full py-2.5 rounded-xl font-black text-sm disabled:opacity-40 active:scale-95"
-                      style={{ background:"#1a3a6b", color:"white" }}>
+                      className="w-full py-2.5 rounded-xl font-black text-sm disabled:opacity-40 active:scale-95 shadow-sm"
+                      style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"white" }}>
                       ✓ Bayar Manual Rp.{csrManualAmount||0} → +{csrManualKap||0} KAP
                     </button>
                   </div>
                   <button onClick={async()=>{setLoading(true);setErr("");try{await post("/csr",{amount:null})}catch(e:unknown){setErr(e instanceof Error?e.message:"Error")}finally{setLoading(false)}}}
-                    disabled={loading} className="w-full py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-500">
-                    Skip CSR (tidak bayar)
+                    disabled={loading} className="w-full py-3 rounded-xl font-bold text-sm active:scale-95 shadow-sm"
+                    style={{ background:"linear-gradient(135deg,#f59e0b,#ef4444)", color:"white" }}>
+                    ⏭ Skip CSR (tidak bayar)
                   </button>
                 </div>
               )}
