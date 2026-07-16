@@ -267,7 +267,7 @@ function processBotTurns(room: Room) {
         } else if (room.currentPutaran === 2) {
           room.phase = "lembur_offer"; room.actedThisPutaran = [];
         } else {
-          room.phase = "customer_input"; room.actedThisPutaran = [];
+          room.phase = "revenue"; room.actedThisPutaran = [];
         }
       }
       continue;
@@ -284,7 +284,7 @@ function processBotTurns(room: Room) {
           room.phase = "operational"; room.currentPutaran = 3;
           room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
           room.players.forEach(p => { p.lastAction = null; });
-        } else { room.phase = "customer_input"; }
+        } else { room.phase = "revenue"; }
         continue;
       }
       if (!acted) break;
@@ -659,7 +659,7 @@ router.post("/rooms/:code/action", (req, res) => {
       room.phase = "lembur_offer"; room.actedThisPutaran = [];
     } else {
       // putaran 3 (aksi lembur) → langsung ke input pelanggan
-      room.phase = "customer_input"; room.actedThisPutaran = [];
+      room.phase = "revenue"; room.actedThisPutaran = [];
     }
   }
   processBotTurns(room);
@@ -719,7 +719,7 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
     if (actedCount >= r.players.length) {
       if (r.currentPutaran === 1) { r.currentPutaran=2; r.actedThisPutaran=[]; r.currentTurnIndex=(r.currentRonde-1)%r.players.length; r.players.forEach(p=>{p.lastAction=null;}); }
       else if (r.currentPutaran === 2) { r.phase="lembur_offer"; r.actedThisPutaran=[]; }
-      else { r.phase="customer_input"; r.actedThisPutaran=[]; }
+      else { r.phase="revenue"; r.actedThisPutaran=[]; }
     }
     setTimeout(() => { if (r.pendingBid?.status !== "pending") { r.pendingBid = null; persist(); } }, 2000);
     processBotTurns(r);
@@ -782,7 +782,7 @@ router.post("/rooms/:code/lembur", (req, res) => {
       room.phase = "operational"; room.currentPutaran = 3;
       room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
       room.players.forEach(p => { p.lastAction = null; });
-    } else { room.phase = "customer_input"; }
+    } else { room.phase = "revenue"; }
   }
   processBotTurns(room);
   persist();
