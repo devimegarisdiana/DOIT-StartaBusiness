@@ -36,9 +36,19 @@ app.get(`${BASE_PATH}/api/healthz`, (_req, res) => {
 // __dirname is injected by build.mjs banner → points to artifacts/api-server/dist/
 const staticDir = path.resolve(__dirname, "../../do-it-app/dist/public");
 if (existsSync(staticDir)) {
-  app.use(BASE_PATH || "/", express.static(staticDir));
+  // Hashed assets (JS/CSS) get long cache; index.html must never be cached
+  app.use(BASE_PATH || "/", express.static(staticDir, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+      }
+    }
+  }));
   // Catch-all: return index.html for client-side routing (Express 5 syntax)
   app.get(/.*/, (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.join(staticDir, "index.html"));
   });
   logger.info({ staticDir }, "Serving static frontend");
