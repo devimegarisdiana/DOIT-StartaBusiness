@@ -275,9 +275,9 @@ export default function GamePage() {
 
   useEffect(() => {
     if ((appPhase==="waiting"||appPhase==="game") && room?.code) {
-      // 8-second interval: long enough to not disrupt form filling,
+      // 3-second interval for responsive updates
       // short enough to detect other players' actions within a turn.
-      pollingRef.current = setInterval(()=>pollRoom(room.code), 8000);
+      pollingRef.current = setInterval(()=>pollRoom(room.code), 3000);
       return ()=>{ if (pollingRef.current) clearInterval(pollingRef.current); };
     }
     return undefined;
@@ -947,8 +947,8 @@ export default function GamePage() {
                       try{await post("/csr",{amount:amt,kapGain:kap});}
                       catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
                       finally{setLoading(false);setCsrManualAmount("");setCsrManualKap("");}
-                    }} disabled={loading||(!csrManualAmount&&!csrManualKap)}
-                      className="w-full py-2.5 rounded-xl font-black text-sm disabled:opacity-40 active:scale-95 shadow-sm"
+                    }} disabled={loading}
+                      className="w-full py-2.5 rounded-xl font-black text-sm disabled:opacity-50 active:scale-95 shadow-sm"
                       style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"white" }}>
                       ✓ Bayar Manual Rp.{csrManualAmount||0} → +{csrManualKap||0} KAP
                     </button>
