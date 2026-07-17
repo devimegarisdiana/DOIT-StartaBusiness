@@ -531,9 +531,13 @@ router.post("/rooms/:code/action", (req, res) => {
     // Harga upgrade = level Kreativitas yang akan dicapai (sesuai papan)
     const newKreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
     const cost = newKreativitas;
-    currentPlayer.kap.kreativitas = newKreativitas;
+    // Validate cafe FIRST, then check money, then apply changes
     const cafe = cafeId ? room.cafes.find(c => c.id === cafeId && c.ownerId === playerId) : null;
     if (!cafe) { res.status(400).json({ error: "Cafe tidak ditemukan atau bukan milikmu" }); return; }
+    if (currentPlayer.money < cost) {
+      res.status(400).json({ error: `Uang tidak cukup untuk upgrade ke level ${newKreativitas} (perlu Rp.${cost})`, required: cost, current: currentPlayer.money }); return;
+    }
+    currentPlayer.kap.kreativitas = newKreativitas;
     if (upgradeType === "add_menu") {
       if (!menuType) { res.status(400).json({ error: "Pilih jenis menu" }); return; }
       const existing = cafe.menuItems.find(m => m.type === menuType);
@@ -558,33 +562,19 @@ router.post("/rooms/:code/action", (req, res) => {
       if (destItem) destItem.count += 1;
       else targetCafe.menuItems.push({ type: menuType, count: 1, price: cafe.menuItems.find(m=>m.type===menuType)?.price || { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
     }
-    if (currentPlayer.money < cost) {
-      const diff = cost - currentPlayer.money;
-      const units = Math.ceil(diff / 3);
-      currentPlayer.hutang += units * 3;
-      currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + units);
-      currentPlayer.money = Math.max(0, currentPlayer.money + units * 3 - cost);
-      addTx(currentPlayer, `Hutang Upgrade (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
-    } else {
-      currentPlayer.money -= cost;
-      addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
-    }
+    currentPlayer.money -= cost;
+    addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
   } else if (action === "social") {
     if (!area) { res.status(400).json({ error: "Pilih area" }); return; }
-    currentPlayer.kap.socialNetworking = Math.min(7, currentPlayer.kap.socialNetworking + 1);
-    const level = currentPlayer.kap.socialNetworking;
+    const newSocialNetworking = Math.min(7, currentPlayer.kap.socialNetworking + 1);
+    const level = newSocialNetworking;
     const cost = level;
     if (currentPlayer.money < cost) {
-      const diff = cost - currentPlayer.money;
-      const units = Math.ceil(diff / 3);
-      currentPlayer.hutang += units * 3;
-      currentPlayer.kap.bersediaRisiko = Math.min(7, currentPlayer.kap.bersediaRisiko + units);
-      currentPlayer.money = Math.max(0, currentPlayer.money + units * 3 - cost);
-      addTx(currentPlayer, `Hutang Social – Area ${area} (lv${level})`, cost, "pengeluaran", room.currentRonde);
-    } else {
-      currentPlayer.money -= cost;
-      addTx(currentPlayer, `Social – Area ${area} (lv${level})`, cost, "pengeluaran", room.currentRonde);
+      res.status(400).json({ error: `Uang tidak cukup untuk social level ${level} (perlu Rp.${cost})`, required: cost, current: currentPlayer.money }); return;
     }
+    currentPlayer.kap.socialNetworking = newSocialNetworking;
+    currentPlayer.money -= cost;
+    addTx(currentPlayer, `Social – Area ${area} (lv${level})`, cost, "pengeluaran", room.currentRonde);
     const areaLevel = currentPlayer.areaLevels.find(al => al.area === area);
     if (areaLevel) {
       const newLevel = Math.min(3, areaLevel.level + 1);
@@ -784,16 +774,10 @@ router.post("/rooms/:code/lembur", (req, res) => {
   if (lembur) {
     const lemburCost = 5;
     if (player.money < lemburCost) {
-      const diff = lemburCost - player.money;
-      const units = Math.ceil(diff / 3);
-      player.hutang += units * 3;
-      player.kap.bersediaRisiko = Math.min(7, player.kap.bersediaRisiko + units);
-      player.money = Math.max(0, player.money + units * 3 - lemburCost);
-      addTx(player, `Hutang Lembur Ronde ${room.currentRonde}`, lemburCost, "pengeluaran", room.currentRonde);
-    } else {
-      player.money -= lemburCost;
-      addTx(player, `Lembur Ronde ${room.currentRonde}`, lemburCost, "pengeluaran", room.currentRonde);
+      res.status(400).json({ error: `Uang tidak cukup untuk lembur (perlu Rp.${lemburCost})`, required: lemburCost, current: player.money }); return;
     }
+    player.money -= lemburCost;
+    addTx(player, `Lembur Ronde ${room.currentRonde}`, lemburCost, "pengeluaran", room.currentRonde);
     player.lemburThisRound = true;
   }
   room.actedThisPutaran.push(playerId + "_lembur");
@@ -900,6 +884,104 @@ router.post("/rooms/:code/end-game-sell", (req, res) => {
   }
   persist();
   res.json({ ok: true });
+});
+
+// ── Pendanaan: Borrow (Hutang) ─────────────────────────────────────────────
+router.post("/rooms/:code/borrow", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId, levels } = req.body as { playerId: string; levels: number };
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
+  const maxLevels = 7 - player.kap.bersediaRisiko;
+  if (maxLevels <= 0) { res.status(400).json({ error: "Bersedia Menanggung Risiko sudah maksimal (level 7)" }); return; }
+  const actualLevels = Math.max(1, Math.min(maxLevels, Math.ceil(Number(levels))));
+  const gained = actualLevels * 3;
+  player.kap.bersediaRisiko = Math.min(7, player.kap.bersediaRisiko + actualLevels);
+  player.hutang += gained;
+  player.money += gained;
+  addTx(player, `Pinjaman – Bersedia Risiko lv${player.kap.bersediaRisiko} (+Rp.${gained})`, gained, "pemasukan", room.currentRonde);
+  persist();
+  res.json({ ok: true, gained, newBersediaRisiko: player.kap.bersediaRisiko, newMoney: player.money });
+});
+
+// ── Pendanaan: Jual Cafe ───────────────────────────────────────────────────
+router.post("/rooms/:code/sell-cafe", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId, cafeId } = req.body as { playerId: string; cafeId: string };
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
+  const cafe = room.cafes.find(c => c.id === cafeId && c.ownerId === playerId);
+  if (!cafe) { res.status(404).json({ error: "Cafe tidak ditemukan atau bukan milikmu" }); return; }
+  const sellPrice = cafe.bidPrice * 2;
+  player.money += sellPrice;
+  player.kap.internalLocus = Math.max(0, player.kap.internalLocus - 1);
+  const cafeName = cafe.name;
+  cafe.ownerId = null; cafe.menuItems = []; cafe.isSetup = false; cafe.seats = 2; cafe.socialCustomers = 0;
+  addTx(player, `Jual Cafe "${cafeName}" (2×Rp.${cafe.bidPrice}) – Internal Locus -1`, sellPrice, "pemasukan", room.currentRonde);
+  persist();
+  res.json({ ok: true, gained: sellPrice, newInternalLocus: player.kap.internalLocus, newMoney: player.money });
+});
+
+// ── Pendanaan: Jual Upgrade ───────────────────────────────────────────────
+router.post("/rooms/:code/sell-upgrade", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId, levels } = req.body as { playerId: string; levels: number };
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
+  if (player.kap.kreativitas <= 0) { res.status(400).json({ error: "Tidak ada upgrade yang bisa dijual (Kreativitas level 0)" }); return; }
+  const actualLevels = Math.max(1, Math.min(player.kap.kreativitas, Math.ceil(Number(levels))));
+  const gained = actualLevels * 2;
+  player.kap.kreativitas -= actualLevels;
+  player.money += gained;
+  addTx(player, `Jual Upgrade – ${actualLevels} level Kreativitas (Rp.${gained})`, gained, "pemasukan", room.currentRonde);
+  persist();
+  res.json({ ok: true, gained, newKreativitas: player.kap.kreativitas, newMoney: player.money });
+});
+
+// ── Edit KAP (host only) ──────────────────────────────────────────────────
+router.post("/rooms/:code/edit-kap", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId: hostId, targetPlayerId, csrKAP, medalKAP, kreativitas, socialNetworking, internalLocus, toleransiAmbiguitas, bersediaRisiko } = req.body as {
+    playerId: string; targetPlayerId: string;
+    csrKAP?: number; medalKAP?: number;
+    kreativitas?: number; socialNetworking?: number; internalLocus?: number; toleransiAmbiguitas?: number; bersediaRisiko?: number;
+  };
+  if (room.hostId !== hostId) { res.status(403).json({ error: "Hanya host yang bisa edit KAP" }); return; }
+  const target = room.players.find(p => p.id === targetPlayerId);
+  if (!target) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
+  if (csrKAP !== undefined) target.csrKAP = Math.max(0, Number(csrKAP));
+  if (medalKAP !== undefined) target.medalKAP = Math.max(0, Number(medalKAP));
+  if (kreativitas !== undefined) target.kap.kreativitas = Math.max(0, Math.min(7, Number(kreativitas)));
+  if (socialNetworking !== undefined) target.kap.socialNetworking = Math.max(0, Math.min(7, Number(socialNetworking)));
+  if (internalLocus !== undefined) target.kap.internalLocus = Math.max(0, Math.min(7, Number(internalLocus)));
+  if (toleransiAmbiguitas !== undefined) target.kap.toleransiAmbiguitas = Math.max(0, Math.min(7, Number(toleransiAmbiguitas)));
+  if (bersediaRisiko !== undefined) target.kap.bersediaRisiko = Math.max(0, Math.min(7, Number(bersediaRisiko)));
+  persist();
+  res.json({ ok: true, finalKAP: calculateFinalKAP(target) });
+});
+
+// ── Edit Revenue ──────────────────────────────────────────────────────────
+router.post("/rooms/:code/edit-revenue", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId, pendapatan, bebanOps } = req.body as { playerId: string; pendapatan: number; bebanOps: number };
+  if (room.phase !== "revenue") { res.status(400).json({ error: "Hanya bisa edit saat fase revenue" }); return; }
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
+  const revenue = Number(pendapatan) || 0;
+  const beban = Number(bebanOps) || 0;
+  const netProfit = revenue - beban;
+  // Remove previous revenue transactions this round and re-add
+  player.transactions = player.transactions.filter(t => t.ronde !== room.currentRonde || !t.keterangan.startsWith("Pendapatan Ronde"));
+  player.money -= netProfit; // reverse (approximation, may drift if partial corrections)
+  player.money = Math.max(0, player.money + netProfit);
+  addTx(player, `Pendapatan Ronde ${room.currentRonde} (edit)`, netProfit, netProfit >= 0 ? "pemasukan" : "pengeluaran", room.currentRonde);
+  persist();
+  res.json({ ok: true, newMoney: player.money });
 });
 
 router.post("/rooms/:code/finish-early", (req, res) => {
