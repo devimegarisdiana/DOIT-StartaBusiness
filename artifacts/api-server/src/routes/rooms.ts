@@ -64,6 +64,7 @@ interface Room {
   pendingExpand: null;
   customerInputs: CustomerInput[];
   createdAt: number;
+  rondeCards?: Record<number, string>;
 }
 
 // ─── File persistence ─────────────────────────────────────────────────────────
@@ -251,7 +252,19 @@ function processBotTurns(room: Room) {
 
     if (phase === "operational") {
       const cur = room.players[room.currentTurnIndex];
-      if (!cur || !cur.isBot) break;
+      if (!cur) break;
+      // In putaran 3, auto-skip non-lembur players (both bots and humans)
+      if (room.currentPutaran === 3 && !cur.lemburThisRound && !room.actedThisPutaran.includes(cur.id)) {
+        room.actedThisPutaran.push(cur.id);
+        room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
+        const acted3 = room.actedThisPutaran.filter(x => !x.includes("_"));
+        const lemburIds = room.players.filter(p => p.lemburThisRound).map(p => p.id);
+        if (lemburIds.every(id => acted3.includes(id))) {
+          room.phase = "revenue"; room.actedThisPutaran = [];
+        }
+        continue;
+      }
+      if (!cur.isBot) break;
       const botCafe = room.cafes.find(c => c.ownerId === cur.id && c.isSetup);
       if (botCafe) {
         const existing = botCafe.menuItems.find(m => m.type === "kopi");
@@ -262,8 +275,11 @@ function processBotTurns(room: Room) {
       cur.lastAction = "upgrade";
       room.actedThisPutaran.push(cur.id);
       room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
-      const acted2 = room.actedThisPutaran.filter(x => !x.includes("_")).length;
-      if (acted2 >= room.players.length) {
+      const acted2 = room.actedThisPutaran.filter(x => !x.includes("_"));
+      const allActed2 = room.currentPutaran === 3
+        ? room.players.filter(p => p.lemburThisRound).every(p => acted2.includes(p.id))
+        : acted2.length >= room.players.length;
+      if (allActed2) {
         if (room.currentPutaran === 1) {
           room.currentPutaran = 2; room.actedThisPutaran = [];
           room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
@@ -651,7 +667,11 @@ router.post("/rooms/:code/action", (req, res) => {
   room.actedThisPutaran.push(playerId);
   room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
 
-  if (room.actedThisPutaran.filter(x=>!x.includes("_")).length >= room.players.length) {
+  const actedRegular = room.actedThisPutaran.filter(x => !x.includes("_"));
+  const allActed = room.currentPutaran === 3
+    ? room.players.filter(p => p.lemburThisRound).every(p => actedRegular.includes(p.id))
+    : actedRegular.length >= room.players.length;
+  if (allActed) {
     if (room.currentPutaran === 1) {
       room.currentPutaran = 2; room.actedThisPutaran = [];
       room.currentTurnIndex = (room.currentRonde - 1) % room.players.length;
@@ -659,7 +679,7 @@ router.post("/rooms/:code/action", (req, res) => {
     } else if (room.currentPutaran === 2) {
       room.phase = "lembur_offer"; room.actedThisPutaran = [];
     } else {
-      // putaran 3 (aksi lembur) → langsung ke input pelanggan
+      // putaran 3 (aksi lembur) → selesai
       room.phase = "revenue"; room.actedThisPutaran = [];
     }
   }
@@ -716,8 +736,11 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
     expander.lastAction = "expand";
     r.actedThisPutaran.push(expander.id);
     r.currentTurnIndex = (r.currentTurnIndex + 1) % r.players.length;
-    const actedCount = r.actedThisPutaran.filter(x => !x.includes("_")).length;
-    if (actedCount >= r.players.length) {
+    const actedR = r.actedThisPutaran.filter(x => !x.includes("_"));
+    const allActedR = r.currentPutaran === 3
+      ? r.players.filter(p => p.lemburThisRound).every(p => actedR.includes(p.id))
+      : actedR.length >= r.players.length;
+    if (allActedR) {
       if (r.currentPutaran === 1) { r.currentPutaran=2; r.actedThisPutaran=[]; r.currentTurnIndex=(r.currentRonde-1)%r.players.length; r.players.forEach(p=>{p.lastAction=null;}); }
       else if (r.currentPutaran === 2) { r.phase="lembur_offer"; r.actedThisPutaran=[]; }
       else { r.phase="revenue"; r.actedThisPutaran=[]; }
@@ -982,6 +1005,56 @@ router.post("/rooms/:code/edit-revenue", (req, res) => {
   addTx(player, `Pendapatan Ronde ${room.currentRonde} (edit)`, netProfit, netProfit >= 0 ? "pemasukan" : "pengeluaran", room.currentRonde);
   persist();
   res.json({ ok: true, newMoney: player.money });
+});
+
+// ── Rejoin (reconnect mid-game by name) ──────────────────────────────────────
+router.post("/rooms/:code/rejoin", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerName } = req.body as { playerName: string };
+  if (!playerName?.trim()) { res.status(400).json({ error: "Nama wajib diisi" }); return; }
+  const player = room.players.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
+  if (!player) { res.status(404).json({ error: "Nama tidak ditemukan di room ini. Pastikan nama sama persis." }); return; }
+  res.json({ playerId: player.id, code: room.code });
+});
+
+// ── Reset Game (host only) ────────────────────────────────────────────────────
+router.post("/rooms/:code/reset-game", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId } = req.body as { playerId: string };
+  if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host yang bisa reset" }); return; }
+  room.status = "waiting";
+  room.phase = "cafe_setup";
+  room.currentRonde = 0; room.currentPutaran = 0;
+  room.currentTurnIndex = 0; room.actedThisPutaran = [];
+  room.cafes = initCafeSlots();
+  room.customerInputs = []; room.pendingBid = null;
+  room.rondeCards = {};
+  room.players.forEach(p => {
+    p.money = room.modalAwal; p.hutang = 0;
+    p.kap = { kreativitas:0, socialNetworking:0, internalLocus:0, toleransiAmbiguitas:0, bersediaRisiko:0 };
+    p.transactions = []; p.lastAction = null;
+    p.csrPaidThisRound = false; p.lemburThisRound = false;
+    p.csrKAP = 0; p.medals = []; p.medalKAP = 0;
+    p.areaLevels = []; p.cafeSetupDone = false; p.cafesSold = false;
+    p.finalKAP = undefined;
+  });
+  persist();
+  res.json({ ok: true });
+});
+
+// ── Set Kartu Ronde (host only) ───────────────────────────────────────────────
+router.post("/rooms/:code/set-ronde-card", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId, ronde, card } = req.body as { playerId: string; ronde: number; card: string };
+  if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
+  if (!ronde || ronde < 1 || ronde > 4) { res.status(400).json({ error: "Ronde tidak valid (1-4)" }); return; }
+  if (!room.rondeCards) room.rondeCards = {};
+  room.rondeCards[ronde] = card?.trim() || "";
+  persist();
+  res.json({ ok: true });
 });
 
 router.post("/rooms/:code/finish-early", (req, res) => {

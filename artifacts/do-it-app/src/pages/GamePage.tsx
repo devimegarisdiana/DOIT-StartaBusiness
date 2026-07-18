@@ -46,6 +46,7 @@ interface Player {
 interface Room {
   code: string; hostId: string; players: Player[];
   maxPlayers: number; modalAwal: number; currentTurnIndex: number;
+  rondeCards?: Record<number, string>;
   status: "waiting" | "playing" | "finished";
   currentRonde: number; currentPutaran: number;
   phase: GamePhase; actedThisPutaran: string[];
@@ -177,6 +178,9 @@ export default function GamePage() {
   const [joinName, setJoinName] = useState("");
   const [joinColor, setJoinColor] = useState<BoardColor>("biru");
   const [joinCode, setJoinCode] = useState("");
+  const [joinTab, setJoinTab] = useState<"baru"|"kembali">("baru");
+  const [rejoinName, setRejoinName] = useState("");
+  const [rejoinCode, setRejoinCode] = useState("");
 
   // Cafe setup
   const [setupCafeName, setSetupCafeName] = useState("");
@@ -337,6 +341,24 @@ export default function GamePage() {
       saveSession(data.playerId, joinCode.toUpperCase());
       await pollRoom(joinCode.toUpperCase());
       setAppPhase("waiting");
+    } catch { setErr("Gagal terhubung"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleRejoin() {
+    if (!rejoinName.trim()||!rejoinCode.trim()) return setErr("Lengkapi kode dan nama");
+    setLoading(true); setErr("");
+    try {
+      const code = rejoinCode.toUpperCase();
+      const res = await fetch(`${API}/rooms/${code}/rejoin`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ playerName:rejoinName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) return setErr(data.error);
+      setMyId(data.playerId);
+      saveSession(data.playerId, code);
+      await pollRoom(code);
     } catch { setErr("Gagal terhubung"); }
     finally { setLoading(false); }
   }
@@ -531,36 +553,70 @@ export default function GamePage() {
         <button onClick={()=>{setErr("");setAppPhase("lobby");}} className="text-white text-2xl">‹</button>
         <h1 className="text-white font-black text-lg">Gabung Room</h1>
       </div>
+      {/* Tab switcher */}
+      <div className="flex border-b border-blue-200" style={{background:"#1a3a6b"}}>
+        {(["baru","kembali"] as const).map(t=>(
+          <button key={t} onClick={()=>{setJoinTab(t);setErr("");}} className="flex-1 py-2.5 text-sm font-black transition-all"
+            style={{color:joinTab===t?"#fbbf24":"#93c5fd",borderBottom:joinTab===t?"2px solid #fbbf24":"2px solid transparent"}}>
+            {t==="baru"?"🆕 Pemain Baru":"🔄 Kembali ke Game"}
+          </button>
+        ))}
+      </div>
       <div className="px-4 py-5 flex flex-col gap-4">
         {err&&<div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-black text-gray-800 text-sm mb-2">Kode Room</h3>
-          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="Contoh: AB3X" maxLength={4}
-            className="w-full border-2 border-gray-200 rounded-xl px-3 py-3 text-3xl font-black text-center tracking-widest outline-none focus:border-blue-400"/>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-black text-gray-800 text-sm mb-2">Namamu</h3>
-          <input value={joinName} onChange={e=>setJoinName(e.target.value)} placeholder="Masukkan namamu..."
-            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-black text-gray-800 text-sm mb-3">Pilih Warna Board</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {BOARD_COLORS.map(c=>(
-              <button key={c.value} onClick={()=>setJoinColor(c.value)}
-                className="p-3 rounded-xl flex items-center gap-2 border-2 transition-all"
-                style={{ background:joinColor===c.value?c.bg:"#f8f8f8", borderColor:joinColor===c.value?c.text:"#e5e7eb" }}>
-                <span className="text-xl">{c.emoji}</span>
-                <div><div className="text-xs font-black" style={{ color:c.text }}>{c.label}</div><div className="text-[10px] text-gray-400">{c.sublabel}</div></div>
-              </button>
-            ))}
-          </div>
-        </div>
-        <button onClick={handleJoin} disabled={loading}
-          className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
-          style={{ background:"linear-gradient(135deg,#28a745,#20c058)" }}>
-          {loading?"Bergabung...":"🚪 Gabung Room"}
-        </button>
+        {joinTab==="baru"?(
+          <>
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <h3 className="font-black text-gray-800 text-sm mb-2">Kode Room</h3>
+              <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="Contoh: AB3X" maxLength={4}
+                className="w-full border-2 border-gray-200 rounded-xl px-3 py-3 text-3xl font-black text-center tracking-widest outline-none focus:border-blue-400"/>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <h3 className="font-black text-gray-800 text-sm mb-2">Namamu</h3>
+              <input value={joinName} onChange={e=>setJoinName(e.target.value)} placeholder="Masukkan namamu..."
+                className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <h3 className="font-black text-gray-800 text-sm mb-3">Pilih Warna Board</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {BOARD_COLORS.map(c=>(
+                  <button key={c.value} onClick={()=>setJoinColor(c.value)}
+                    className="p-3 rounded-xl flex items-center gap-2 border-2 transition-all"
+                    style={{ background:joinColor===c.value?c.bg:"#f8f8f8", borderColor:joinColor===c.value?c.text:"#e5e7eb" }}>
+                    <span className="text-xl">{c.emoji}</span>
+                    <div><div className="text-xs font-black" style={{ color:c.text }}>{c.label}</div><div className="text-[10px] text-gray-400">{c.sublabel}</div></div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button onClick={handleJoin} disabled={loading}
+              className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
+              style={{ background:"linear-gradient(135deg,#28a745,#20c058)" }}>
+              {loading?"Bergabung...":"🚪 Gabung Room"}
+            </button>
+          </>
+        ):(
+          <>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800 font-semibold">
+              ⚠️ Gunakan ini jika kamu terputus dari game yang sedang berjalan. Nama harus sama persis dengan saat mendaftar.
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <h3 className="font-black text-gray-800 text-sm mb-2">Kode Room</h3>
+              <input value={rejoinCode} onChange={e=>setRejoinCode(e.target.value.toUpperCase())} placeholder="Contoh: AB3X" maxLength={4}
+                className="w-full border-2 border-gray-200 rounded-xl px-3 py-3 text-3xl font-black text-center tracking-widest outline-none focus:border-blue-400"/>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <h3 className="font-black text-gray-800 text-sm mb-2">Nama (sama persis)</h3>
+              <input value={rejoinName} onChange={e=>setRejoinName(e.target.value)} placeholder="Nama yang kamu daftarkan..."
+                className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
+            </div>
+            <button onClick={handleRejoin} disabled={loading}
+              className="w-full py-4 rounded-2xl text-white font-black text-base shadow-lg disabled:opacity-60 active:scale-95 transition-transform"
+              style={{ background:"linear-gradient(135deg,#f59e0b,#d97706)" }}>
+              {loading?"Mencari...":"🔄 Kembali ke Game"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -773,6 +829,34 @@ export default function GamePage() {
 
         <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
           {err&&<div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
+
+          {/* ── KARTU RONDE BANNER ── */}
+          {room.rondeCards?.[room.currentRonde]&&(
+            <div className="rounded-2xl p-3 flex items-start gap-3" style={{background:"linear-gradient(135deg,#fef3c7,#fde68a)",border:"2px solid #f59e0b"}}>
+              <span className="text-2xl flex-shrink-0">🃏</span>
+              <div>
+                <div className="text-xs font-black text-amber-700 mb-0.5">Kartu Ronde {room.currentRonde}</div>
+                <div className="text-sm font-bold text-amber-900">{room.rondeCards[room.currentRonde]}</div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PUTARAN 3 – NON-LEMBUR WAITING ── */}
+          {room.phase==="operational"&&room.currentPutaran===3&&!myPlayer.lemburThisRound&&(
+            <div className="bg-white rounded-2xl p-5 text-center shadow-sm">
+              <div className="text-4xl mb-2">⏸️</div>
+              <div className="font-black text-gray-700 text-base">Giliran Lembur</div>
+              <p className="text-xs text-gray-400 mt-1">Kamu tidak memilih lembur. Menunggu pemain lembur selesai beraksi...</p>
+              <div className="mt-3 flex flex-wrap gap-1 justify-center">
+                {room.players.filter(p=>p.lemburThisRound).map(p=>(
+                  <span key={p.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{background:room.actedThisPutaran.includes(p.id)?"#dcfce7":"#fef9c3",color:room.actedThisPutaran.includes(p.id)?"#16a34a":"#92400e"}}>
+                    {p.id===myId?"Kamu":p.name} {room.actedThisPutaran.includes(p.id)?"✓":"⏳"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── PENDING BID ── */}
           {pendingBid?.status==="pending"&&(()=>{
