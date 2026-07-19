@@ -854,6 +854,54 @@ export default function GamePage() {
         {showFacilitatorPanel&&myId&&room&&(
           <FacilitatorPanel roomCode={room.code} myId={myId} onClose={()=>setShowFacilitatorPanel(false)}/>
         )}
+
+        {/* ── FLOATING TURN TIMER POPUP ── */}
+        {timerVisible&&(
+          <div
+            className="fixed bottom-6 left-1/2 z-50 select-none"
+            style={{transform:"translateX(-50%)",filter:turnSecondsLeft<=10?"drop-shadow(0 0 12px #ef4444)":turnSecondsLeft<=30?"drop-shadow(0 0 8px #f97316)":"none"}}
+          >
+            <div
+              className="rounded-2xl px-5 py-3 flex flex-col items-center gap-1.5 shadow-2xl"
+              style={{
+                background: turnSecondsLeft<=30
+                  ? "linear-gradient(135deg,#1f1f1f,#2d1010)"
+                  : "linear-gradient(135deg,#0f172a,#1e3a5f)",
+                border:`2px solid ${timerColor}`,
+                minWidth:160,
+                animation: turnSecondsLeft<=10 ? "timerPulse 0.5s ease-in-out infinite alternate" : turnSecondsLeft<=30 ? "timerPulse 1s ease-in-out infinite alternate" : "none",
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{turnSecondsLeft<=10?"🚨":turnSecondsLeft<=30?"⚠️":"⏱️"}</span>
+                <span className="text-[11px] font-bold text-white/60 uppercase tracking-wider">Giliran Kamu</span>
+              </div>
+              <span
+                className="font-black tabular-nums leading-none"
+                style={{fontSize:48,color:timerColor,letterSpacing:2}}
+              >
+                {timerLabel}
+              </span>
+              <div className="w-full rounded-full overflow-hidden" style={{height:6,background:"rgba(255,255,255,0.1)"}}>
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{width:`${timerPct}%`,background:timerColor}}
+                />
+              </div>
+              <span className="text-[10px] font-bold" style={{color:timerColor}}>
+                {turnSecondsLeft<=10?"SEGERA AMBIL KEPUTUSAN!":turnSecondsLeft<=30?"Waktu hampir habis!":"menit tersisa"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <style>{`
+          @keyframes timerPulse {
+            from { transform: translateX(-50%) scale(1); }
+            to   { transform: translateX(-50%) scale(1.04); }
+          }
+        `}</style>
+
         {/* Top Bar */}
         <div className="flex-shrink-0" style={{ background:"#1a3a6b" }}>
           <div className="flex items-center gap-2 px-3 pt-3 pb-1">
@@ -888,22 +936,6 @@ export default function GamePage() {
               </div>
             ))}
           </div>
-          {/* ── TURN TIMER ── */}
-          {timerVisible&&(
-            <div className="mx-3 mb-1 rounded-xl overflow-hidden" style={{background:timerBg}}>
-              <div className="flex items-center justify-between px-3 py-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-base">{turnSecondsLeft<=10?"🚨":turnSecondsLeft<=30?"⚠️":"⏱️"}</span>
-                  <span className="text-xs font-bold text-white/80">Sisa waktu giliran</span>
-                </div>
-                <span className="font-black text-base tabular-nums" style={{color:timerColor}}>{timerLabel}</span>
-              </div>
-              <div className="h-1.5 w-full bg-white/10">
-                <div className="h-full transition-all duration-1000" style={{width:`${timerPct}%`,background:timerColor}}/>
-              </div>
-            </div>
-          )}
-
           <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
             {room.players.map(p=>{
               const pbc=bcInfo(p.boardColor);
