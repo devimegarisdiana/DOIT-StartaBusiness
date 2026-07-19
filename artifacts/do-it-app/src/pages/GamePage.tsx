@@ -42,6 +42,7 @@ interface Player {
   csrPaidThisRound: boolean; lemburThisRound: boolean;
   areaLevels: PlayerAreaLevel[]; cafeSetupDone: boolean; cafesSold: boolean;
   medals?: MenuType[]; medalKAP?: number; csrKAP?: number; finalKAP?: number;
+  fomoCount?: number;
 }
 interface Room {
   code: string; hostId: string; players: Player[];
@@ -811,6 +812,22 @@ export default function GamePage() {
             </div>
             <button onClick={()=>{setShowEditKAP(true);setEditKAPTarget(myId);setEditKAP({kreativitas:"",socialNetworking:"",internalLocus:"",toleransiAmbiguitas:"",bersediaRisiko:"",csrKAP:"",medalKAP:""});}} className="ml-1 w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{background:"rgba(255,255,255,0.12)"}} title="Edit KAP">✏️</button>
             {isHost&&<button onClick={()=>setShowFacilitatorPanel(true)} className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{background:"rgba(255,255,255,0.15)"}}>🎛</button>}
+          </div>
+          {/* Stats bar */}
+          <div className="flex gap-0 px-3 pb-1.5 overflow-x-auto">
+            {[
+              {label:"KAP",val:myPlayer.kapScore,color:"#fbbf24"},
+              {label:"Hutang",val:Math.floor((myPlayer.hutang||0)/3)+" poin",color:"#f87171"},
+              {label:"Kre",val:myPlayer.kap.kreativitas,color:"#a78bfa"},
+              {label:"ILoC",val:myPlayer.kap.internalLocus,color:"#34d399"},
+              {label:"Social",val:myPlayer.kap.socialNetworking,color:"#60a5fa"},
+              {label:"FOMO",val:myPlayer.fomoCount??0,color:(myPlayer.fomoCount??0)>0?"#fb923c":"#94a3b8"},
+            ].map(s=>(
+              <div key={s.label} className="flex-shrink-0 flex flex-col items-center px-2.5 border-r border-white/10 last:border-0">
+                <span className="font-black text-sm leading-tight" style={{color:s.color}}>{s.val}</span>
+                <span className="text-[9px] text-blue-300 font-bold">{s.label}</span>
+              </div>
+            ))}
           </div>
           <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
             {room.players.map(p=>{

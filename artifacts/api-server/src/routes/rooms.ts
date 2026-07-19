@@ -50,6 +50,7 @@ interface Player {
   areaLevels: PlayerAreaLevel[];
   cafeSetupDone: boolean;
   cafesSold: boolean;
+  fomoCount: number;
   finalKAP?: number;
 }
 
@@ -138,7 +139,7 @@ function makePlayer(id: string, name: string, boardColor: BoardColor, isHost: bo
     kap: { kreativitas: 0, socialNetworking: 0, internalLocus: 0, toleransiAmbiguitas: 0, bersediaRisiko: 0 },
     transactions: [], lastAction: null, csrPaidThisRound: false, lemburThisRound: false, csrKAP: 0, medals: [], medalKAP: 0,
     areaLevels: ALL_COLORS.map(area => ({ area, level: 1 })),
-    cafeSetupDone: false, cafesSold: false,
+    cafeSetupDone: false, cafesSold: false, fomoCount: 0,
   };
 }
 
@@ -159,6 +160,29 @@ function initCafeSlots(): CafeSlot[] {
     }
   }
   return slots;
+}
+
+// ── FOMO helpers ─────────────────────────────────────────────────────────────
+// Returns KAP penalty given accumulated fomoCount
+function fomoKAPPenalty(count: number): number {
+  // 0-1: aman, 2-3: -1 each, 4-6: -2 each, 7+: -3
+  if (count <= 1) return 0;
+  if (count <= 3) return 1;
+  if (count <= 6) return 2;
+  return 3;
+}
+
+// Check if player's new menu types overlap with OTHER players' cafes in same area.
+// If overlap → increment player.fomoCount.
+function applyFomoCheck(room: Room, playerId: string, area: BoardColor, newMenuTypes: MenuType[]) {
+  if (newMenuTypes.length === 0) return;
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) return;
+  const otherCafesInArea = room.cafes.filter(c => c.area === area && c.ownerId !== null && c.ownerId !== playerId && c.isSetup);
+  if (otherCafesInArea.length === 0) return;
+  const otherMenuTypes = new Set(otherCafesInArea.flatMap(c => c.menuItems.map(m => m.type)));
+  const hasOverlap = newMenuTypes.some(mt => otherMenuTypes.has(mt));
+  if (hasOverlap) player.fomoCount = (player.fomoCount || 0) + 1;
 }
 
 function assignMedals(room: Room) {
@@ -193,7 +217,8 @@ function calculateFinalKAP(player: Player): number {
   // Hutang: setiap level hutang (Rp.3/level) yg belum dibayar = -1 KAP
   // player.hutang disimpan dalam Rupiah, jadi dibagi 3 untuk dapat jumlah level
   const hutangPenalty = Math.floor((player.hutang || 0) / 3);
-  return base + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty;
+  const fomoPenalty = fomoKAPPenalty(player.fomoCount || 0);
+  return base + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty - fomoPenalty;
 }
 
 function advanceRonde(room: Room) {
@@ -559,6 +584,8 @@ router.post("/rooms/:code/action", (req, res) => {
       const existing = cafe.menuItems.find(m => m.type === menuType);
       if (existing) existing.count += 1;
       else cafe.menuItems.push({ type: menuType, count: 1, price: { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
+      // FOMO check: menu baru ini sama dengan cafe lain di area yang sama?
+      applyFomoCheck(room, playerId, cafe.area, [menuType]);
     } else if (upgradeType === "raise_price") {
       if (!menuType) { res.status(400).json({ error: "Pilih menu" }); return; }
       const item = cafe.menuItems.find(m => m.type === menuType);
@@ -624,6 +651,8 @@ router.post("/rooms/:code/action", (req, res) => {
       emptySlot.name = expandSpecs.name || `Kafe ${targetArea} #${emptySlot.slotIndex}`; emptySlot.isSetup = true;
       addTx(currentPlayer, `Buy Out Cafe (${emptySlot.name})`, price, "pengeluaran", room.currentRonde);
       currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
+      // FOMO check: menu cafe baru ini sama dengan cafe lain di area target?
+      applyFomoCheck(room, playerId, targetArea, (expandSpecs.menuItems||[]).map(m=>m.type));
     } else if (bidType === "open_bid") {
       emptySlot.bidPrice = bPrice; emptySlot.buyoutPrice = buyoutP;
       emptySlot.menuItems = expandSpecs.menuItems || []; emptySlot.seats = expandSpecs.seats || 2;
@@ -635,6 +664,7 @@ router.post("/rooms/:code/action", (req, res) => {
         emptySlot.ownerId = playerId; emptySlot.isSetup = true;
         addTx(currentPlayer, `Buka Bid (solo): ${emptySlot.name}`, oPrice, "pengeluaran", room.currentRonde);
         currentPlayer.kap.internalLocus = Math.min(7, currentPlayer.kap.internalLocus + 1);
+        applyFomoCheck(room, playerId, targetArea, (expandSpecs.menuItems||[]).map(m=>m.type));
       } else {
         const expanderIdx = room.players.findIndex(p => p.id === playerId);
         const turnOrder: string[] = [];
@@ -732,6 +762,10 @@ router.post("/rooms/:code/bid-respond", (req, res) => {
     cafe.ownerId = winnerId; cafe.isSetup = true;
     bid.winnerId = winnerId;
     bid.status = "sold";
+    // FOMO: jika expander menang bid (cafe jadi milik expander), cek overlap menu
+    if (winnerId === bid.expanderId) {
+      applyFomoCheck(r, bid.expanderId, cafe.area, cafe.menuItems.map(m => m.type));
+    }
     expander.kap.internalLocus = Math.min(7, expander.kap.internalLocus + 1);
     expander.lastAction = "expand";
     r.actedThisPutaran.push(expander.id);
@@ -1038,7 +1072,7 @@ router.post("/rooms/:code/reset-game", (req, res) => {
     p.csrPaidThisRound = false; p.lemburThisRound = false;
     p.csrKAP = 0; p.medals = []; p.medalKAP = 0;
     p.areaLevels = []; p.cafeSetupDone = false; p.cafesSold = false;
-    p.finalKAP = undefined;
+    p.fomoCount = 0; p.finalKAP = undefined;
   });
   persist();
   res.json({ ok: true });
