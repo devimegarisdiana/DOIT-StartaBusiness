@@ -190,6 +190,54 @@ export default function GamePage() {
   const [setupSeats, setSetupSeats] = useState("2");
   const [setupBonusKAP, setSetupBonusKAP] = useState("0");
 
+  // Turn timer
+  const [turnSecondsLeft, setTurnSecondsLeft] = useState(180);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const playBeep = useCallback((freq = 880, duration = 0.2, count = 1, gap = 0.12) => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+        audioCtxRef.current = new AudioContext();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") ctx.resume();
+      for (let i = 0; i < count; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = "sine";
+        const t0 = ctx.currentTime + i * (duration + gap);
+        gain.gain.setValueAtTime(0.35, t0);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+        osc.start(t0); osc.stop(t0 + duration);
+      }
+    } catch { /* AudioContext not available */ }
+  }, []);
+
+  useEffect(() => {
+    const TURN_PHASES = ["csr","operational","lembur_offer","customer_input","revenue","end_game_sell"];
+    const currentPlayerId = room?.players[room.currentTurnIndex ?? -1]?.id;
+    const bidTurnId = room?.pendingBid?.status === "pending" ? room.pendingBid.currentTurnPlayerId : null;
+    const isActiveTurn = myId && room && (
+      (TURN_PHASES.includes(room.phase) && currentPlayerId === myId) ||
+      bidTurnId === myId
+    );
+    if (!isActiveTurn) { setTurnSecondsLeft(180); return; }
+    setTurnSecondsLeft(180);
+    const interval = setInterval(() => {
+      setTurnSecondsLeft(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next === 60) playBeep(880, 0.15, 1);
+        if (next === 30) playBeep(1000, 0.18, 2, 0.1);
+        if (next === 10) playBeep(1200, 0.12, 3, 0.08);
+        if (next === 5) playBeep(1400, 0.1, 5, 0.06);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [room?.currentTurnIndex, room?.phase, room?.pendingBid?.currentTurnPlayerId, myId, playBeep]);
+
   // Action flow
   const [actionStep, setActionStep] = useState<ActionStep>(null);
   const [showFacilitatorPanel, setShowFacilitatorPanel] = useState(false);
@@ -748,6 +796,16 @@ export default function GamePage() {
     const PHASE_LABELS: Record<string,string> = { cafe_setup:"Setup Cafe",csr:"CSR",operational:"Aksi",lembur_offer:"Lembur",customer_input:"Pelanggan",revenue:"Pendapatan",end_game_sell:"Jual Cafe",finished:"Selesai" };
     const isHost=room.hostId===myId;
 
+    // Timer display
+    const TURN_PHASES_DISPLAY = ["csr","operational","lembur_offer","customer_input","revenue","end_game_sell"];
+    const timerVisible = (TURN_PHASES_DISPLAY.includes(room.phase) && currentPlayer?.id===myId) || isMyBidTurn;
+    const timerMin = Math.floor(turnSecondsLeft/60);
+    const timerSec = turnSecondsLeft%60;
+    const timerLabel = `${timerMin}:${String(timerSec).padStart(2,"0")}`;
+    const timerPct = (turnSecondsLeft/180)*100;
+    const timerColor = turnSecondsLeft<=30?"#ef4444": turnSecondsLeft<=60?"#f97316":"#22c55e";
+    const timerBg = turnSecondsLeft<=30?"rgba(239,68,68,0.15)": turnSecondsLeft<=60?"rgba(249,115,22,0.15)":"rgba(34,197,94,0.15)";
+
     // ── FINISHED ──
     if (room.status==="finished") {
       const sorted=[...room.players].sort((a,b)=>(b.finalKAP??b.kapScore)-(a.finalKAP??a.kapScore));
@@ -830,6 +888,22 @@ export default function GamePage() {
               </div>
             ))}
           </div>
+          {/* ── TURN TIMER ── */}
+          {timerVisible&&(
+            <div className="mx-3 mb-1 rounded-xl overflow-hidden" style={{background:timerBg}}>
+              <div className="flex items-center justify-between px-3 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">{turnSecondsLeft<=10?"🚨":turnSecondsLeft<=30?"⚠️":"⏱️"}</span>
+                  <span className="text-xs font-bold text-white/80">Sisa waktu giliran</span>
+                </div>
+                <span className="font-black text-base tabular-nums" style={{color:timerColor}}>{timerLabel}</span>
+              </div>
+              <div className="h-1.5 w-full bg-white/10">
+                <div className="h-full transition-all duration-1000" style={{width:`${timerPct}%`,background:timerColor}}/>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
             {room.players.map(p=>{
               const pbc=bcInfo(p.boardColor);
