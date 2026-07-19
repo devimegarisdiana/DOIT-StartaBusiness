@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
-const URL = "https://app.kusmintarti-akuntansi-polinema.com/login";
+const URL = "https://app.kusmintarti-akuntansi-polinema.com/";
 
 export default function KompetensiPage() {
   const navigate = useNavigate();
