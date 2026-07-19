@@ -15,9 +15,9 @@ const CARDS = [
   },
   {
     num: "03", icon: "🎯", title: "Pengukuran Kompetensi Kewirausahaan",
-    desc: "Unduh aplikasi untuk mengukur kompetensi kewirausahaanmu sebelum dan sesudah bermain.",
+    desc: "Ukur kompetensi kewirausahaanmu sebelum dan sesudah bermain secara langsung.",
     color: "#d97706", grad: "linear-gradient(135deg,#b45309,#f59e0b)",
-    badge: "Download App", action: "https://kusmintarti-akuntansi-polinema.com/downloads/kompetensi_kewirausahaan_1.0.apk", external: true,
+    badge: "Buka Sekarang", action: "/kompetensi",
   },
 ];
 
@@ -86,7 +86,7 @@ export default function Home() {
           {CARDS.map((card, i) => (
             <button key={card.num}
               className={`anim-slide-up tap-scale`}
-              onClick={() => card.external ? window.open(card.action, "_blank") : navigate(card.action)}
+              onClick={() => (card as {external?:boolean}).external ? window.open(card.action, "_blank") : navigate(card.action)}
               style={{
                 width:"100%", textAlign:"left", cursor:"pointer",
                 background:"linear-gradient(160deg, #ffffff 0%, #f5f9ff 100%)",
