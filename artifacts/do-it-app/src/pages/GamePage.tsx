@@ -188,6 +188,7 @@ export default function GamePage() {
   const [setupBidPrice, setSetupBidPrice] = useState("");
   const [setupMenuItems, setSetupMenuItems] = useState<MenuItem[]>([]);
   const [setupSeats, setSetupSeats] = useState("2");
+  const [setupBonusKAP, setSetupBonusKAP] = useState("0");
 
   // Action flow
   const [actionStep, setActionStep] = useState<ActionStep>(null);
@@ -1001,12 +1002,17 @@ export default function GamePage() {
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
                   </div>
                   <div>
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Bonus KAP Cafe <span className="font-normal text-gray-400">(dari kartu/papan)</span></label>
+                    <input type="number" value={setupBonusKAP} onChange={e=>setSetupBonusKAP(e.target.value)} min={0} placeholder="0"
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-400"/>
+                  </div>
+                  <div>
                     <label className="text-xs font-bold text-gray-600 mb-2 block">Menu yang Tersedia</label>
                     <MenuEditor items={setupMenuItems} onChange={setSetupMenuItems}/>
                   </div>
                   <button onClick={async()=>{
                     setLoading(true);setErr("");
-                    try{await post("/cafe-setup",{menuItems:setupMenuItems,seats:parseInt(setupSeats)||2,name:setupCafeName||undefined});}
+                    try{await post("/cafe-setup",{menuItems:setupMenuItems,seats:parseInt(setupSeats)||2,name:setupCafeName||undefined,bonusKAP:parseInt(setupBonusKAP)||0});}
                     catch(e:unknown){setErr(e instanceof Error?e.message:"Error");}
                     finally{setLoading(false);}
                   }} disabled={loading}

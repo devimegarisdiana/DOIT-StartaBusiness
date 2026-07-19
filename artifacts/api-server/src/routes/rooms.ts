@@ -17,6 +17,7 @@ interface CafeSlot {
   id: string; area: BoardColor; slotIndex: number; name: string;
   bidPrice: number; buyoutPrice: number; ownerId: string | null;
   menuItems: MenuItem[]; seats: number; socialCustomers: number; isSetup: boolean;
+  bonusKAP?: number;
 }
 interface PlayerAreaLevel { area: BoardColor; level: number; }
 interface CustomerInput { area: BoardColor; menuSought: MenuType[]; customerCount: number; playerId: string; }
@@ -205,10 +206,14 @@ function assignMedals(room: Room) {
   }
 }
 
-function calculateFinalKAP(player: Player): number {
+function calculateFinalKAP(player: Player, room?: Room): number {
   const k = player.kap;
   // KAP dasar: hanya dari CSR dan medali — level dimensi BUKAN langsung KAP
   const base = (player.csrKAP || 0) + (player.medalKAP || 0);
+  // Bonus KAP dari cafe awal
+  const cafeBonus = room
+    ? room.cafes.filter(c => c.ownerId === player.id).reduce((s, c) => s + (c.bonusKAP || 0), 0)
+    : 0;
   // Bonus trofi dari papan (milestone per dimensi)
   const kreBonus = k.kreativitas>=7?4 : k.kreativitas>=5?3 : k.kreativitas>=4?2 : k.kreativitas>=3?1 : 0;
   const socBonus = k.socialNetworking>=7?3 : k.socialNetworking>=5?2 : k.socialNetworking>=3?1 : 0;
@@ -218,7 +223,7 @@ function calculateFinalKAP(player: Player): number {
   // player.hutang disimpan dalam Rupiah, jadi dibagi 3 untuk dapat jumlah level
   const hutangPenalty = Math.floor((player.hutang || 0) / 3);
   const fomoPenalty = fomoKAPPenalty(player.fomoCount || 0);
-  return base + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty - fomoPenalty;
+  return base + cafeBonus + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty - fomoPenalty;
 }
 
 function advanceRonde(room: Room) {
@@ -376,7 +381,7 @@ function processBotTurns(room: Room) {
       }
       if (room.players.every(p => p.cafesSold)) {
         assignMedals(room);
-        room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
+        room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p, room); });
         room.status = "finished"; room.phase = "finished";
       }
       break;
@@ -424,7 +429,7 @@ router.get("/rooms/:code", (req, res) => {
     ...room,
     players: room.players.map(p => ({
       ...p,
-      kapScore: calculateFinalKAP(p),
+      kapScore: calculateFinalKAP(p, room),
     })),
   });
 });
@@ -496,8 +501,8 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
   const room = rooms.get(req.params.code.toUpperCase());
   if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
   if (room.phase !== "cafe_setup") { res.status(400).json({ error: "Bukan fase setup cafe" }); return; }
-  const { playerId, menuItems, seats, name } = req.body as {
-    playerId: string; menuItems: MenuItem[]; seats: number; name?: string;
+  const { playerId, menuItems, seats, name, bonusKAP } = req.body as {
+    playerId: string; menuItems: MenuItem[]; seats: number; name?: string; bonusKAP?: number;
   };
   const player = room.players.find(p => p.id === playerId);
   if (!player) { res.status(404).json({ error: "Pemain tidak ditemukan" }); return; }
@@ -508,6 +513,7 @@ router.post("/rooms/:code/cafe-setup", (req, res) => {
   cafe.bidPrice = 0; cafe.buyoutPrice = 0;
   cafe.menuItems = (menuItems || []).map(m => ({ type: m.type, count: m.count || 1, price: m.price || 1 }));
   cafe.seats = Number(seats) || 2;
+  cafe.bonusKAP = Number(bonusKAP) || 0;
   cafe.isSetup = true; player.cafeSetupDone = true;
   if (room.players.every(p => p.cafeSetupDone)) { room.phase = "csr"; room.currentTurnIndex = 0; }
   processBotTurns(room);
@@ -936,7 +942,7 @@ router.post("/rooms/:code/end-game-sell", (req, res) => {
   processBotTurns(room);
   if (room.players.every(p => p.cafesSold)) {
     assignMedals(room);
-    room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
+    room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p, room); });
     room.status = "finished"; room.phase = "finished";
   }
   persist();
@@ -1018,7 +1024,7 @@ router.post("/rooms/:code/edit-kap", (req, res) => {
   if (toleransiAmbiguitas !== undefined) target.kap.toleransiAmbiguitas = Math.max(0, Math.min(7, Number(toleransiAmbiguitas)));
   if (bersediaRisiko !== undefined) target.kap.bersediaRisiko = Math.max(0, Math.min(7, Number(bersediaRisiko)));
   persist();
-  res.json({ ok: true, finalKAP: calculateFinalKAP(target) });
+  res.json({ ok: true, finalKAP: calculateFinalKAP(target, room) });
 });
 
 // ── Edit Revenue ──────────────────────────────────────────────────────────
@@ -1097,7 +1103,7 @@ router.post("/rooms/:code/finish-early", (req, res) => {
   const { playerId } = req.body as { playerId: string };
   if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
   assignMedals(room);
-  room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); });
+  room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p, room); });
   room.status = "finished"; room.phase = "finished";
   persist();
   res.json({ ok: true });
@@ -1113,7 +1119,7 @@ router.post("/rooms/:code/facilitator-advance", (req, res) => {
   const idx = PHASE_ORDER.indexOf(room.phase);
   const next = PHASE_ORDER[idx + 1] ?? "finished";
   room.phase = next; room.actedThisPutaran = [];
-  if (next === "finished") { assignMedals(room); room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p); }); room.status = "finished"; }
+  if (next === "finished") { assignMedals(room); room.players.forEach(p => { p.finalKAP = calculateFinalKAP(p, room); }); room.status = "finished"; }
   persist();
   res.json({ ok: true, newPhase: next });
 });
