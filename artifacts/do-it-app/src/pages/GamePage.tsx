@@ -1263,14 +1263,18 @@ export default function GamePage() {
                       <div className="flex flex-col gap-2">
                         {[
                           {type:"add_menu" as const,icon:"🍽",label:"Tambah Menu",desc:"Tambah jenis menu baru (max 3 jenis)"},
-                          {type:"raise_price" as const,icon:"💹",label:"Naikkan Harga",desc:"Naikkan harga menu yang ada +1"},
+                          {type:"raise_price" as const,icon:"💹",label:"Naikkan Harga",desc:`Semua menu di cafe ini naik +1 (${myCafes.find(c=>c.id===actionStep.cafeId)?.menuItems.map(m=>`${MENU_INFO[m.type].emoji}Rp.${m.price}→${m.price+1}`).join(", ")||"belum ada menu"})`},
                           {type:"add_seats" as const,icon:"🪑",label:"Tambah Kursi",desc:`Kursi sekarang: ${myCafes.find(c=>c.id===actionStep.cafeId)?.seats||0}`},
                           {type:"move" as const,icon:"↔️",label:"Pindahkan Menu",desc:"Gratis – hanya pindah posisi menu antar cafe"},
                         ].map(opt=>(
                           <button key={opt.type} onClick={()=>{
+                            const upCost=Math.min(7,myPlayer.kap.kreativitas+1);
                             if(opt.type==="add_seats"){
-                              const upCost=Math.min(7,myPlayer.kap.kreativitas+1);
                               confirmAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"add_seats"},"⬆️ Upgrade: Tambah Kursi",actionStep.cafeName,upCost,[`Kreativitas ${myPlayer.kap.kreativitas}→${Math.min(7,myPlayer.kap.kreativitas+1)}`,"Kursi +1"]);
+                            } else if(opt.type==="raise_price"){
+                              const cafe=myCafes.find(c=>c.id===actionStep.cafeId);
+                              const menuDesc=cafe?.menuItems.map(m=>`${MENU_INFO[m.type].emoji} Rp.${m.price}→${m.price+1}`).join(", ")||"-";
+                              confirmAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"raise_price"},"⬆️ Upgrade: Naikkan Harga",actionStep.cafeName,upCost,[`Kreativitas ${myPlayer.kap.kreativitas}→${Math.min(7,myPlayer.kap.kreativitas+1)}`,`Harga semua menu +1: ${menuDesc}`]);
                             } else setActionStep({action:"upgrade",step:"select_menu",cafeId:actionStep.cafeId,upgradeType:opt.type,cafeName:actionStep.cafeName});
                           }} className="p-3 rounded-xl flex items-center gap-3 border-2 border-blue-100 active:scale-95 bg-blue-50">
                             <span className="text-2xl">{opt.icon}</span>

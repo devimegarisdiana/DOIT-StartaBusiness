@@ -621,15 +621,9 @@ router.post("/rooms/:code/action", (req, res) => {
         cafe.menuItems.push({ type: menuType, count: 1, price: { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
         applyFomoCheck(room, playerId, cafe.area, [menuType]);
       } else if (upgradeType === "raise_price") {
-        if (!menuType) { res.status(400).json({ error: "Pilih menu" }); return; }
-        const item = cafe.menuItems.find(m => m.type === menuType);
-        if (!item) { res.status(400).json({ error: "Menu tidak ada" }); return; }
-        // Naikkan harga di SEMUA cafe milik pemain untuk menu yang sama
-        const newPrice = item.price + 1;
-        room.cafes.filter(c => c.ownerId === playerId).forEach(c => {
-          const m = c.menuItems.find(mi => mi.type === menuType);
-          if (m) m.price = newPrice;
-        });
+        if (cafe.menuItems.length === 0) { res.status(400).json({ error: "Cafe belum punya menu" }); return; }
+        // Naikkan harga SEMUA menu di cafe yang dipilih
+        cafe.menuItems.forEach(m => { m.price += 1; });
       } else if (upgradeType === "add_seats") {
         cafe.seats += 1;
       }
