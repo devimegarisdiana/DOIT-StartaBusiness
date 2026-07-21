@@ -856,7 +856,7 @@ export default function GamePage() {
         )}
 
         {/* ── FLOATING TURN TIMER POPUP ── */}
-        {timerVisible&&(
+        {timerVisible&&!pendingFunds&&!pendingConfirm&&(
           <div
             className="fixed bottom-6 left-1/2 z-50 select-none"
             style={{transform:"translateX(-50%)",filter:turnSecondsLeft<=10?"drop-shadow(0 0 12px #ef4444)":turnSecondsLeft<=30?"drop-shadow(0 0 8px #f97316)":"none"}}
@@ -2089,7 +2089,7 @@ export default function GamePage() {
 
         {/* ── CONFIRMATION MODAL ─────────────────────────────────── */}
         {pendingConfirm&&myPlayer&&(
-          <div className="fixed inset-0 z-50 flex items-end justify-center p-4" style={{background:"rgba(0,0,0,0.55)"}}>
+          <div className="fixed inset-0 z-[60] flex items-end justify-center p-4" style={{background:"rgba(0,0,0,0.55)"}}>
             <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{background:"#fff"}}>
               <div className="px-5 pt-6 pb-2 text-center" style={{background:"linear-gradient(135deg,#1a3a6b,#2478d4)"}}>
                 <div className="text-3xl mb-1">🎯</div>
@@ -2128,7 +2128,7 @@ export default function GamePage() {
 
         {/* ── PENDANAAN MODAL (uang tidak cukup) ─────────────────── */}
         {pendingFunds&&myPlayer&&(
-          <div className="fixed inset-0 z-50 flex items-end justify-center p-4" style={{background:"rgba(0,0,0,0.55)"}}>
+          <div className="fixed inset-0 z-[60] flex items-end justify-center p-4" style={{background:"rgba(0,0,0,0.55)"}}>
             <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{background:"#fff",maxHeight:"90vh",overflowY:"auto"}}>
               <div className="px-5 pt-5 pb-3" style={{background:"linear-gradient(135deg,#dc2626,#ef4444)"}}>
                 <div className="text-white font-black text-base">💸 Uang Tidak Cukup</div>
