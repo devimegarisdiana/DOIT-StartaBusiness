@@ -67,6 +67,7 @@ interface Room {
   customerInputs: CustomerInput[];
   createdAt: number;
   rondeCards?: Record<number, string>;
+  rondeKAPBonuses: Record<number, Record<string, number>>;
 }
 
 // ─── File persistence ─────────────────────────────────────────────────────────
@@ -223,7 +224,11 @@ function calculateFinalKAP(player: Player, room?: Room): number {
   // player.hutang disimpan dalam Rupiah, jadi dibagi 3 untuk dapat jumlah level
   const hutangPenalty = Math.floor((player.hutang || 0) / 3);
   const fomoPenalty = fomoKAPPenalty(player.fomoCount || 0);
-  return base + cafeBonus + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty - fomoPenalty;
+  // Bonus KAP dari kartu ronde (per ronde, set oleh fasilitator)
+  const rondeBonus = room
+    ? Object.values(room.rondeKAPBonuses || {}).reduce((s, perRonde) => s + (perRonde[player.id] || 0), 0)
+    : 0;
+  return base + cafeBonus + rondeBonus + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty - fomoPenalty;
 }
 
 function advanceRonde(room: Room) {
@@ -414,6 +419,7 @@ router.post("/rooms", (req, res) => {
     pendingBid: null, pendingExpand: null,
     customerInputs: [],
     createdAt: Date.now(),
+    rondeKAPBonuses: {},
   };
   rooms.set(code, room);
   persist();
@@ -1070,7 +1076,7 @@ router.post("/rooms/:code/reset-game", (req, res) => {
   room.currentTurnIndex = 0; room.actedThisPutaran = [];
   room.cafes = initCafeSlots();
   room.customerInputs = []; room.pendingBid = null;
-  room.rondeCards = {};
+  room.rondeCards = {}; room.rondeKAPBonuses = {};
   room.players.forEach(p => {
     p.money = room.modalAwal; p.hutang = 0;
     p.kap = { kreativitas:0, socialNetworking:0, internalLocus:0, toleransiAmbiguitas:0, bersediaRisiko:0 };
@@ -1093,6 +1099,20 @@ router.post("/rooms/:code/set-ronde-card", (req, res) => {
   if (!ronde || ronde < 1 || ronde > 4) { res.status(400).json({ error: "Ronde tidak valid (1-4)" }); return; }
   if (!room.rondeCards) room.rondeCards = {};
   room.rondeCards[ronde] = card?.trim() || "";
+  persist();
+  res.json({ ok: true });
+});
+
+router.post("/rooms/:code/set-ronde-kap", (req, res) => {
+  const room = rooms.get(req.params.code.toUpperCase());
+  if (!room) { res.status(404).json({ error: "Room tidak ditemukan" }); return; }
+  const { playerId, ronde, bonuses } = req.body as {
+    playerId: string; ronde: number; bonuses: Record<string, number>;
+  };
+  if (room.hostId !== playerId) { res.status(403).json({ error: "Hanya host" }); return; }
+  if (!ronde || ronde < 1 || ronde > 4) { res.status(400).json({ error: "Ronde tidak valid (1-4)" }); return; }
+  if (!room.rondeKAPBonuses) room.rondeKAPBonuses = {};
+  room.rondeKAPBonuses[ronde] = bonuses;
   persist();
   res.json({ ok: true });
 });

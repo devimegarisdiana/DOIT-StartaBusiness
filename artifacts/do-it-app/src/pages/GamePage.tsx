@@ -36,7 +36,7 @@ interface PendingBid {
 interface KAP { kreativitas: number; socialNetworking: number; internalLocus: number; toleransiAmbiguitas: number; bersediaRisiko: number; }
 interface Transaction { id: string; keterangan: string; jumlah: number; tipe: "pemasukan" | "pengeluaran"; waktu: string; ronde: number; }
 interface Player {
-  id: string; name: string; boardColor: BoardColor; isHost: boolean;
+  id: string; name: string; boardColor: BoardColor; isHost: boolean; isBot?: boolean;
   money: number; hutang: number; kap: KAP; kapScore: number;
   transactions: Transaction[]; lastAction: ActionChoice | null;
   csrPaidThisRound: boolean; lemburThisRound: boolean;
@@ -852,7 +852,7 @@ export default function GamePage() {
     return (
       <div className="flex flex-col flex-1 overflow-hidden relative" style={{ background:"#d6eeff" }}>
         {showFacilitatorPanel&&myId&&room&&(
-          <FacilitatorPanel roomCode={room.code} myId={myId} onClose={()=>setShowFacilitatorPanel(false)}/>
+          <FacilitatorPanel roomCode={room.code} myId={myId} onClose={()=>setShowFacilitatorPanel(false)} players={room.players.filter(p=>!p.isBot).map(p=>({id:p.id,name:p.name,boardColor:p.boardColor}))}/>
         )}
 
         {/* ── FLOATING TURN TIMER POPUP ── */}
@@ -953,17 +953,6 @@ export default function GamePage() {
 
         <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
           {err&&<div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-sm text-red-600 font-semibold">{err}</div>}
-
-          {/* ── KARTU RONDE BANNER ── */}
-          {room.rondeCards?.[room.currentRonde]&&(
-            <div className="rounded-2xl p-3 flex items-start gap-3" style={{background:"linear-gradient(135deg,#fef3c7,#fde68a)",border:"2px solid #f59e0b"}}>
-              <span className="text-2xl flex-shrink-0">🃏</span>
-              <div>
-                <div className="text-xs font-black text-amber-700 mb-0.5">Kartu Ronde {room.currentRonde}</div>
-                <div className="text-sm font-bold text-amber-900">{room.rondeCards[room.currentRonde]}</div>
-              </div>
-            </div>
-          )}
 
           {/* ── PUTARAN 3 – NON-LEMBUR WAITING ── */}
           {room.phase==="operational"&&room.currentPutaran===3&&!myPlayer.lemburThisRound&&(
