@@ -224,7 +224,19 @@ export default function GamePage() {
       bidTurnId === myId
     );
     if (!isActiveTurn) { setTurnSecondsLeft(180); return; }
-    setTurnSecondsLeft(180);
+
+    // Persist timer across page refresh using localStorage
+    const timerKey = `timer_${room.code}_${room.phase}_${room.currentTurnIndex}_${bidTurnId||""}`;
+    const stored = localStorage.getItem(timerKey);
+    let initialSeconds = 180;
+    if (stored) {
+      const elapsed = Math.floor((Date.now() - parseInt(stored, 10)) / 1000);
+      initialSeconds = Math.max(0, 180 - elapsed);
+    } else {
+      localStorage.setItem(timerKey, String(Date.now()));
+    }
+    setTurnSecondsLeft(initialSeconds);
+
     const interval = setInterval(() => {
       setTurnSecondsLeft(prev => {
         const next = Math.max(0, prev - 1);
@@ -1249,10 +1261,10 @@ export default function GamePage() {
                       </div>
                       <div className="flex flex-col gap-2">
                         {[
-                          {type:"add_menu" as const,icon:"🍽",label:"Tambah Menu",desc:"Tambah item menu baru"},
+                          {type:"add_menu" as const,icon:"🍽",label:"Tambah Menu",desc:"Tambah jenis menu baru (max 3 jenis)"},
                           {type:"raise_price" as const,icon:"💹",label:"Naikkan Harga",desc:"Naikkan harga menu yang ada +1"},
                           {type:"add_seats" as const,icon:"🪑",label:"Tambah Kursi",desc:`Kursi sekarang: ${myCafes.find(c=>c.id===actionStep.cafeId)?.seats||0}`},
-                          {type:"move" as const,icon:"↔️",label:"Pindahkan Menu",desc:"Pindahkan menu ke cafe lain milikmu"},
+                          {type:"move" as const,icon:"↔️",label:"Pindahkan Menu",desc:"Gratis – hanya pindah posisi menu antar cafe"},
                         ].map(opt=>(
                           <button key={opt.type} onClick={()=>{
                             if(opt.type==="add_seats"){
@@ -1272,53 +1284,107 @@ export default function GamePage() {
                     <div className="bg-white rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-3"><button onClick={()=>setActionStep({action:"upgrade",step:"select_type",cafeId:actionStep.cafeId,cafeName:actionStep.cafeName})} className="text-gray-400 text-xl">‹</button>
                         <h3 className="font-black text-blue-700 text-base">{{add_menu:"Pilih Menu Baru",raise_price:"Naikkan Harga",move:"Pilih Menu (Pindah)",add_seats:"Tambah Kursi"}[actionStep.upgradeType]}</h3></div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {MENU_TYPES.map(mt=>{
-                          const info=MENU_INFO[mt];
-                          const cafe=myCafes.find(c=>c.id===actionStep.cafeId);
-                          const hasItem=cafe?.menuItems.some(m=>m.type===mt);
-                          const disabled=(actionStep.upgradeType==="raise_price"||actionStep.upgradeType==="move")&&!hasItem;
-                          return (
-                            <button key={mt} disabled={!!disabled}
-                              onClick={()=>{
-                                if(actionStep.upgradeType==="move")setActionStep({action:"upgrade",step:"select_move_target",cafeId:actionStep.cafeId,menuType:mt});
-                                else {
-                                  const upCost=Math.min(7,myPlayer.kap.kreativitas+1);
-                                  const label={add_menu:"Tambah Menu",raise_price:"Naikkan Harga",add_seats:"Tambah Kursi",move:"Pindah Menu"}[actionStep.upgradeType];
-                                  confirmAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:actionStep.upgradeType,menuType:mt},`⬆️ Upgrade: ${label}`,`${MENU_INFO[mt].emoji} ${MENU_INFO[mt].label}`,upCost,[`Kreativitas ${myPlayer.kap.kreativitas}→${Math.min(7,myPlayer.kap.kreativitas+1)}`]);
-                                }
-                              }}
-                              className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 border-blue-100 active:scale-95 disabled:opacity-30"
-                              style={{ background:disabled?"#f5f5f5":"#eff6ff" }}>
-                              <span className="text-2xl">{info.emoji}</span>
-                              <span className="font-black text-blue-700 text-xs">{info.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {(()=>{
+                        const cafe=myCafes.find(c=>c.id===actionStep.cafeId);
+                        const cafeMenuTypes=new Set(cafe?.menuItems.map(m=>m.type)||[]);
+                        const cafeIsFull=cafeMenuTypes.size>=3;
+                        return (<>
+                          {actionStep.upgradeType==="add_menu"&&cafeIsFull&&(
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-2 text-xs font-bold text-amber-700">⚠️ Cafe sudah memiliki 3 jenis menu (maksimum)</div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2">
+                            {MENU_TYPES.map(mt=>{
+                              const info=MENU_INFO[mt];
+                              const hasItem=cafeMenuTypes.has(mt);
+                              // add_menu: disable jika menu sudah ada ATAU cafe sudah penuh
+                              const disabledAdd=actionStep.upgradeType==="add_menu"&&(hasItem||cafeIsFull);
+                              // raise_price/move: disable jika menu TIDAK ada
+                              const disabledOther=(actionStep.upgradeType==="raise_price"||actionStep.upgradeType==="move")&&!hasItem;
+                              const disabled=disabledAdd||disabledOther;
+                              const reasonLabel=actionStep.upgradeType==="add_menu"&&hasItem?"Sudah ada":actionStep.upgradeType==="add_menu"&&cafeIsFull?"Penuh":"";
+                              return (
+                                <button key={mt} disabled={!!disabled}
+                                  onClick={()=>{
+                                    if(actionStep.upgradeType==="move")setActionStep({action:"upgrade",step:"select_move_target",cafeId:actionStep.cafeId,menuType:mt});
+                                    else {
+                                      const upCost=Math.min(7,myPlayer.kap.kreativitas+1);
+                                      const label={add_menu:"Tambah Menu",raise_price:"Naikkan Harga",add_seats:"Tambah Kursi",move:"Pindah Menu"}[actionStep.upgradeType];
+                                      confirmAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:actionStep.upgradeType,menuType:mt},`⬆️ Upgrade: ${label}`,`${MENU_INFO[mt].emoji} ${MENU_INFO[mt].label}`,upCost,[`Kreativitas ${myPlayer.kap.kreativitas}→${Math.min(7,myPlayer.kap.kreativitas+1)}`]);
+                                    }
+                                  }}
+                                  className="p-3 rounded-xl flex flex-col items-center gap-1 border-2 border-blue-100 active:scale-95 disabled:opacity-30"
+                                  style={{ background:disabled?"#f5f5f5":"#eff6ff" }}>
+                                  <span className="text-2xl">{info.emoji}</span>
+                                  <span className="font-black text-blue-700 text-xs">{info.label}</span>
+                                  {reasonLabel&&<span className="text-[9px] text-red-400 font-bold">{reasonLabel}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>);
+                      })()}
                     </div>
                   )}
                   {actionStep?.action==="upgrade"&&actionStep.step==="select_move_target"&&(
                     <div className="bg-white rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-3"><button onClick={()=>setActionStep({action:"upgrade",step:"select_menu",cafeId:actionStep.cafeId,upgradeType:"move",cafeName:""})} className="text-gray-400 text-xl">‹</button>
                         <h3 className="font-black text-blue-700 text-base">↔️ Pindah ke Cafe Mana?</h3></div>
-                      {myCafes.filter(c=>c.id!==actionStep.cafeId).length===0?(<p className="text-sm text-gray-400 text-center">Kamu hanya punya 1 cafe.</p>):(
-                        <div className="flex flex-col gap-2">
-                          {myCafes.filter(c=>c.id!==actionStep.cafeId).map(c=>{
-                            const cbc=bcInfo(c.area);
-                            return (
-                              <button key={c.id} onClick={()=>{const upCost=Math.min(7,myPlayer.kap.kreativitas+1);confirmAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"move",menuType:actionStep.menuType,targetCafeId:c.id},"⬆️ Pindahkan Menu",`${actionStep.menuType?MENU_INFO[actionStep.menuType as MenuType]?.emoji:""} → ${c.name}`,upCost,[`Kreativitas ${myPlayer.kap.kreativitas}→${Math.min(7,myPlayer.kap.kreativitas+1)}`]);}}
-                                className="p-3 rounded-xl flex items-center gap-3 border-2 active:scale-95" style={{ background:cbc.bg, borderColor:cbc.text+"40" }}>
-                                <span className="text-2xl">{cbc.emoji}</span>
-                                <div className="flex-1 text-left">
-                                  <div className="font-black text-sm" style={{ color:cbc.text }}>{c.name}</div>
-                                  <div className="text-xs text-gray-500">{c.menuItems.map(m=>`${MENU_INFO[m.type].emoji}×${m.count}`).join(" ")||"Kosong"}</div>
+                      <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-3 flex justify-between items-center">
+                        <span className="text-xs text-green-700 font-bold">Biaya Pindah Menu</span>
+                        <span className="text-sm font-black text-green-700">✅ Gratis</span>
+                      </div>
+                      {(()=>{
+                        const eligibleCafes=myCafes.filter(c=>{
+                          if(c.id===actionStep.cafeId) return false;
+                          // Tidak boleh ke cafe yang sudah punya menu yang sama
+                          if(c.menuItems.some(m=>m.type===actionStep.menuType)) return false;
+                          // Tidak boleh ke cafe yang sudah 3 menu
+                          if(c.menuItems.length>=3) return false;
+                          return true;
+                        });
+                        const blockedCafes=myCafes.filter(c=>{
+                          if(c.id===actionStep.cafeId) return false;
+                          return c.menuItems.some(m=>m.type===actionStep.menuType)||c.menuItems.length>=3;
+                        });
+                        return (<>
+                          {eligibleCafes.length===0&&myCafes.filter(c=>c.id!==actionStep.cafeId).length===0&&(
+                            <p className="text-sm text-gray-400 text-center">Kamu hanya punya 1 cafe.</p>
+                          )}
+                          {eligibleCafes.length===0&&myCafes.filter(c=>c.id!==actionStep.cafeId).length>0&&(
+                            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs font-bold text-red-600">
+                              Tidak ada cafe tujuan yang tersedia – semua cafe lain sudah memiliki menu yang sama atau sudah penuh (3 menu).
+                            </div>
+                          )}
+                          <div className="flex flex-col gap-2">
+                            {eligibleCafes.map(c=>{
+                              const cbc=bcInfo(c.area);
+                              return (
+                                <button key={c.id} onClick={()=>confirmAction({action:"upgrade",cafeId:actionStep.cafeId,upgradeType:"move",menuType:actionStep.menuType,targetCafeId:c.id},"↔️ Pindahkan Menu",`${actionStep.menuType?MENU_INFO[actionStep.menuType as MenuType]?.emoji:""} → ${c.name}`,0,["Gratis – tidak mengurangi uang","Menu dipindahkan ke cafe tujuan"])}
+                                  className="p-3 rounded-xl flex items-center gap-3 border-2 active:scale-95" style={{ background:cbc.bg, borderColor:cbc.text+"40" }}>
+                                  <span className="text-2xl">{cbc.emoji}</span>
+                                  <div className="flex-1 text-left">
+                                    <div className="font-black text-sm" style={{ color:cbc.text }}>{c.name}</div>
+                                    <div className="text-xs text-gray-500">{c.menuItems.map(m=>`${MENU_INFO[m.type].emoji}`).join(" ")||"Kosong"} · {c.menuItems.length}/3 menu</div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                            {blockedCafes.map(c=>{
+                              const cbc=bcInfo(c.area);
+                              const reason=c.menuItems.some(m=>m.type===actionStep.menuType)?"Menu sudah ada":"Cafe penuh";
+                              return (
+                                <div key={c.id} className="p-3 rounded-xl flex items-center gap-3 border-2 opacity-40 border-gray-200" style={{ background:"#f5f5f5" }}>
+                                  <span className="text-2xl">{cbc.emoji}</span>
+                                  <div className="flex-1 text-left">
+                                    <div className="font-black text-sm text-gray-500">{c.name}</div>
+                                    <div className="text-xs text-red-400 font-bold">{reason}</div>
+                                  </div>
                                 </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        </>);
+                      })()}
                     </div>
                   )}
 

@@ -581,44 +581,56 @@ router.post("/rooms/:code/action", (req, res) => {
   }
 
   if (action === "upgrade") {
-    // Harga upgrade = level Kreativitas yang akan dicapai (sesuai papan)
-    const newKreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
-    const cost = newKreativitas;
-    // Validate cafe FIRST, then check money, then apply changes
     const cafe = cafeId ? room.cafes.find(c => c.id === cafeId && c.ownerId === playerId) : null;
     if (!cafe) { res.status(400).json({ error: "Cafe tidak ditemukan atau bukan milikmu" }); return; }
-    if (currentPlayer.money < cost) {
-      res.status(400).json({ error: `Uang tidak cukup untuk upgrade ke level ${newKreativitas} (perlu Rp.${cost})`, required: cost, current: currentPlayer.money }); return;
-    }
-    currentPlayer.kap.kreativitas = newKreativitas;
-    if (upgradeType === "add_menu") {
-      if (!menuType) { res.status(400).json({ error: "Pilih jenis menu" }); return; }
-      const existing = cafe.menuItems.find(m => m.type === menuType);
-      if (existing) existing.count += 1;
-      else cafe.menuItems.push({ type: menuType, count: 1, price: { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
-      // FOMO check: menu baru ini sama dengan cafe lain di area yang sama?
-      applyFomoCheck(room, playerId, cafe.area, [menuType]);
-    } else if (upgradeType === "raise_price") {
-      if (!menuType) { res.status(400).json({ error: "Pilih menu" }); return; }
-      const item = cafe.menuItems.find(m => m.type === menuType);
-      if (!item) { res.status(400).json({ error: "Menu tidak ada" }); return; }
-      item.price += 1;
-    } else if (upgradeType === "add_seats") {
-      cafe.seats += 1;
-    } else if (upgradeType === "move") {
+
+    if (upgradeType === "move") {
+      // ── PINDAHKAN MENU: GRATIS, tidak mengurangi uang / kreativitas ──
       if (!menuType || !targetCafeId) { res.status(400).json({ error: "Lengkapi detail pemindahan" }); return; }
       const targetCafe = room.cafes.find(c => c.id === targetCafeId && c.ownerId === playerId);
       if (!targetCafe) { res.status(400).json({ error: "Cafe tujuan tidak ditemukan" }); return; }
+      if (targetCafe.menuItems.some(m => m.type === menuType)) {
+        res.status(400).json({ error: `Cafe tujuan sudah memiliki menu ${menuType}` }); return;
+      }
+      if (targetCafe.menuItems.length >= 3) {
+        res.status(400).json({ error: "Cafe tujuan sudah mencapai maksimum 3 menu" }); return;
+      }
       const sourceItem = cafe.menuItems.find(m => m.type === menuType);
-      if (!sourceItem || sourceItem.count < 1) { res.status(400).json({ error: "Menu tidak cukup" }); return; }
-      sourceItem.count -= 1;
-      if (sourceItem.count === 0) cafe.menuItems = cafe.menuItems.filter(m => m.type !== menuType);
-      const destItem = targetCafe.menuItems.find(m => m.type === menuType);
-      if (destItem) destItem.count += 1;
-      else targetCafe.menuItems.push({ type: menuType, count: 1, price: cafe.menuItems.find(m=>m.type===menuType)?.price || { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
+      if (!sourceItem) { res.status(400).json({ error: "Menu tidak ada di cafe ini" }); return; }
+      cafe.menuItems = cafe.menuItems.filter(m => m.type !== menuType);
+      targetCafe.menuItems.push({ type: menuType, count: 1, price: sourceItem.price });
+      // Move gratis: tidak ada debit uang / kreativitas increment / transaction
+    } else {
+      // ── UPGRADE BIASA: bayar & naikkan kreativitas ──
+      const newKreativitas = Math.min(7, currentPlayer.kap.kreativitas + 1);
+      const cost = newKreativitas;
+      if (currentPlayer.money < cost) {
+        res.status(400).json({ error: `Uang tidak cukup untuk upgrade ke level ${newKreativitas} (perlu Rp.${cost})`, required: cost, current: currentPlayer.money }); return;
+      }
+      currentPlayer.kap.kreativitas = newKreativitas;
+      if (upgradeType === "add_menu") {
+        if (!menuType) { res.status(400).json({ error: "Pilih jenis menu" }); return; }
+        // Tidak boleh tambah menu yang sudah ada (setup awal sebagai acuan)
+        if (cafe.menuItems.some(m => m.type === menuType)) {
+          res.status(400).json({ error: `Menu ${menuType} sudah ada di cafe ini` }); return;
+        }
+        // Maksimum 3 jenis menu per cafe
+        if (cafe.menuItems.length >= 3) {
+          res.status(400).json({ error: "Cafe sudah mencapai maksimum 3 jenis menu" }); return;
+        }
+        cafe.menuItems.push({ type: menuType, count: 1, price: { kopi:3,teh:2,kue:4,croissant:5 }[menuType] });
+        applyFomoCheck(room, playerId, cafe.area, [menuType]);
+      } else if (upgradeType === "raise_price") {
+        if (!menuType) { res.status(400).json({ error: "Pilih menu" }); return; }
+        const item = cafe.menuItems.find(m => m.type === menuType);
+        if (!item) { res.status(400).json({ error: "Menu tidak ada" }); return; }
+        item.price += 1;
+      } else if (upgradeType === "add_seats") {
+        cafe.seats += 1;
+      }
+      currentPlayer.money -= cost;
+      addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
     }
-    currentPlayer.money -= cost;
-    addTx(currentPlayer, `Upgrade ${upgradeType||''} (${cafe.name}) lv${newKreativitas} – Rp.${cost}`, cost, "pengeluaran", room.currentRonde);
   } else if (action === "social") {
     if (!area) { res.status(400).json({ error: "Pilih area" }); return; }
     const newSocialNetworking = Math.min(7, currentPlayer.kap.socialNetworking + 1);
