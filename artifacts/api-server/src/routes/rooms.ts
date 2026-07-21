@@ -207,28 +207,32 @@ function assignMedals(room: Room) {
   }
 }
 
-function calculateFinalKAP(player: Player, room?: Room): number {
+function baseKAP(player: Player, room?: Room): number {
   const k = player.kap;
-  // KAP dasar: hanya dari CSR dan medali — level dimensi BUKAN langsung KAP
   const base = (player.csrKAP || 0) + (player.medalKAP || 0);
-  // Bonus KAP dari cafe awal
   const cafeBonus = room
     ? room.cafes.filter(c => c.ownerId === player.id).reduce((s, c) => s + (c.bonusKAP || 0), 0)
     : 0;
-  // Bonus trofi dari papan (milestone per dimensi)
   const kreBonus = k.kreativitas>=7?4 : k.kreativitas>=5?3 : k.kreativitas>=4?2 : k.kreativitas>=3?1 : 0;
   const socBonus = k.socialNetworking>=7?3 : k.socialNetworking>=5?2 : k.socialNetworking>=3?1 : 0;
   const locBonus = k.internalLocus>=7?4 : k.internalLocus>=5?3 : k.internalLocus>=3?2 : 0;
   const ambPenalty = k.toleransiAmbiguitas>=7?3 : k.toleransiAmbiguitas>=4?2 : k.toleransiAmbiguitas>=2?1 : 0;
-  // Hutang: setiap level hutang (Rp.3/level) yg belum dibayar = -1 KAP
-  // player.hutang disimpan dalam Rupiah, jadi dibagi 3 untuk dapat jumlah level
-  const hutangPenalty = Math.floor((player.hutang || 0) / 3);
-  const fomoPenalty = fomoKAPPenalty(player.fomoCount || 0);
-  // Bonus KAP dari kartu ronde (per ronde, set oleh fasilitator)
   const rondeBonus = room
     ? Object.values(room.rondeKAPBonuses || {}).reduce((s, perRonde) => s + (perRonde[player.id] || 0), 0)
     : 0;
-  return base + cafeBonus + rondeBonus + kreBonus + socBonus + locBonus - ambPenalty - hutangPenalty - fomoPenalty;
+  return base + cafeBonus + rondeBonus + kreBonus + socBonus + locBonus - ambPenalty;
+}
+
+// Selama game berlangsung: hanya bonus, tanpa penalti hutang/FOMO
+function calculateLiveKAP(player: Player, room?: Room): number {
+  return baseKAP(player, room);
+}
+
+// Di akhir game: semua penalti diterapkan (hutang & FOMO)
+function calculateFinalKAP(player: Player, room?: Room): number {
+  const hutangPenalty = Math.floor((player.hutang || 0) / 3);
+  const fomoPenalty = fomoKAPPenalty(player.fomoCount || 0);
+  return baseKAP(player, room) - hutangPenalty - fomoPenalty;
 }
 
 function advanceRonde(room: Room) {
@@ -435,7 +439,7 @@ router.get("/rooms/:code", (req, res) => {
     ...room,
     players: room.players.map(p => ({
       ...p,
-      kapScore: calculateFinalKAP(p, room),
+      kapScore: calculateLiveKAP(p, room),
     })),
   });
 });
