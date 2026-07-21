@@ -19,6 +19,12 @@ const CARDS = [
     color: "#d97706", grad: "linear-gradient(135deg,#b45309,#f59e0b)",
     badge: "Buka Sekarang", action: "/kompetensi",
   },
+  {
+    num: "04", icon: "📋", title: "Kuesioner Intensi Kewirausahaan",
+    desc: "Isi kuesioner intensi kewirausahaan untuk melengkapi data penelitian.",
+    color: "#7c3aed", grad: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
+    badge: "Isi Sekarang", action: "https://bit.ly/Kuesioner_Intensi_KWU", external: true,
+  },
 ];
 
 export default function Home() {
