@@ -226,7 +226,8 @@ export default function GamePage() {
     if (!isActiveTurn) { setTurnSecondsLeft(180); return; }
 
     // Persist timer across page refresh using localStorage
-    const timerKey = `timer_${room.code}_${room.phase}_${room.currentTurnIndex}_${bidTurnId||""}`;
+    // Key includes ronde+putaran so the timer resets each new turn even for the same player index
+    const timerKey = `timer_${room.code}_${room.currentRonde}_${room.currentPutaran}_${room.phase}_${room.currentTurnIndex}_${bidTurnId||""}`;
     const stored = localStorage.getItem(timerKey);
     let initialSeconds = 180;
     if (stored) {
