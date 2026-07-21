@@ -232,7 +232,14 @@ export default function GamePage() {
     let initialSeconds = 180;
     if (stored) {
       const elapsed = Math.floor((Date.now() - parseInt(stored, 10)) / 1000);
-      initialSeconds = Math.max(0, 180 - elapsed);
+      if (elapsed > 0 && elapsed < 180) {
+        // Resume from where we left off (browser refresh within same turn)
+        initialSeconds = 180 - elapsed;
+      } else {
+        // Stale entry from a previous game/session — start fresh
+        localStorage.setItem(timerKey, String(Date.now()));
+        initialSeconds = 180;
+      }
     } else {
       localStorage.setItem(timerKey, String(Date.now()));
     }
