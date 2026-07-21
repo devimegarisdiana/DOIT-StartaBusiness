@@ -193,6 +193,8 @@ export default function GamePage() {
   // Turn timer
   const [turnSecondsLeft, setTurnSecondsLeft] = useState(180);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  // True only on the very first mount of this component instance (i.e. after a page refresh)
+  const isFirstTimerMountRef = useRef(true);
 
   const playBeep = useCallback((freq = 880, duration = 0.2, count = 1, gap = 0.12) => {
     try {
@@ -225,24 +227,24 @@ export default function GamePage() {
     );
     if (!isActiveTurn) { setTurnSecondsLeft(180); return; }
 
-    // Persist timer across page refresh using localStorage
-    // Key includes ronde+putaran so the timer resets each new turn even for the same player index
+    // Timer persists ONLY on browser refresh (page remount).
+    // Any turn/ronde change within the same session always resets to 180.
     const timerKey = `timer_${room.code}_${room.currentRonde}_${room.currentPutaran}_${room.phase}_${room.currentTurnIndex}_${bidTurnId||""}`;
-    const stored = localStorage.getItem(timerKey);
     let initialSeconds = 180;
-    if (stored) {
-      const elapsed = Math.floor((Date.now() - parseInt(stored, 10)) / 1000);
-      if (elapsed > 0 && elapsed < 180) {
-        // Resume from where we left off (browser refresh within same turn)
-        initialSeconds = 180 - elapsed;
-      } else {
-        // Stale entry from a previous game/session — start fresh
-        localStorage.setItem(timerKey, String(Date.now()));
-        initialSeconds = 180;
+    if (isFirstTimerMountRef.current) {
+      // First mount of this component instance = browser was refreshed.
+      // Try to resume from localStorage if entry is fresh.
+      const stored = localStorage.getItem(timerKey);
+      if (stored) {
+        const elapsed = Math.floor((Date.now() - parseInt(stored, 10)) / 1000);
+        if (elapsed > 0 && elapsed < 180) {
+          initialSeconds = 180 - elapsed;
+        }
       }
-    } else {
-      localStorage.setItem(timerKey, String(Date.now()));
     }
+    // Mark subsequent useEffect runs (turn/ronde changes in same session) as non-first
+    isFirstTimerMountRef.current = false;
+    localStorage.setItem(timerKey, String(Date.now()));
     setTurnSecondsLeft(initialSeconds);
 
     const interval = setInterval(() => {
