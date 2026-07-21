@@ -624,7 +624,12 @@ router.post("/rooms/:code/action", (req, res) => {
         if (!menuType) { res.status(400).json({ error: "Pilih menu" }); return; }
         const item = cafe.menuItems.find(m => m.type === menuType);
         if (!item) { res.status(400).json({ error: "Menu tidak ada" }); return; }
-        item.price += 1;
+        // Naikkan harga di SEMUA cafe milik pemain untuk menu yang sama
+        const newPrice = item.price + 1;
+        room.cafes.filter(c => c.ownerId === playerId).forEach(c => {
+          const m = c.menuItems.find(mi => mi.type === menuType);
+          if (m) m.price = newPrice;
+        });
       } else if (upgradeType === "add_seats") {
         cafe.seats += 1;
       }
