@@ -12,6 +12,7 @@ const CARDS = [
     desc: "Buat atau gabung room, catat transaksi, dan hitung KAP secara real-time.",
     color: "#059669", grad: "linear-gradient(135deg,#047857,#10b981)",
     badge: "Multiplayer", action: "/game",
+    imgSrc: import.meta.env.BASE_URL.replace(/\/$/, "") + "/meeple-icon.jpeg",
   },
   {
     num: "03", icon: "🎯", title: "Pengukuran Kompetensi Kewirausahaan",
@@ -123,10 +124,14 @@ export default function Home() {
                 <div style={{
                   width:52, height:52, borderRadius:17, display:"flex", alignItems:"center",
                   justifyContent:"center", fontSize:26, flexShrink:0,
-                  background:card.grad,
-                  boxShadow:`0 6px 18px ${card.color}45`,
+                  background:(card as {imgSrc?:string}).imgSrc ? "transparent" : card.grad,
+                  boxShadow:(card as {imgSrc?:string}).imgSrc ? "none" : `0 6px 18px ${card.color}45`,
+                  overflow:"hidden",
                 }}>
-                  {card.icon}
+                  {(card as {imgSrc?:string}).imgSrc
+                    ? <img src={(card as {imgSrc?:string}).imgSrc} alt={card.title}
+                        style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:17 }}/>
+                    : card.icon}
                 </div>
 
                 <div style={{ flex:1, minWidth:0 }}>
