@@ -216,23 +216,24 @@ function baseKAP(player: Player, room?: Room): number {
   const kreBonus = k.kreativitas>=7?4 : k.kreativitas>=5?3 : k.kreativitas>=4?2 : k.kreativitas>=3?1 : 0;
   const socBonus = k.socialNetworking>=7?3 : k.socialNetworking>=5?2 : k.socialNetworking>=3?1 : 0;
   const locBonus = k.internalLocus>=7?4 : k.internalLocus>=5?3 : k.internalLocus>=3?2 : 0;
-  const ambPenalty = k.toleransiAmbiguitas>=7?3 : k.toleransiAmbiguitas>=4?2 : k.toleransiAmbiguitas>=2?1 : 0;
   const rondeBonus = room
     ? Object.values(room.rondeKAPBonuses || {}).reduce((s, perRonde) => s + (perRonde[player.id] || 0), 0)
     : 0;
-  return base + cafeBonus + rondeBonus + kreBonus + socBonus + locBonus - ambPenalty;
+  return base + cafeBonus + rondeBonus + kreBonus + socBonus + locBonus;
 }
 
-// Selama game berlangsung: hanya bonus, tanpa penalti hutang/FOMO
+// Selama game berlangsung: hanya bonus, tanpa penalti
 function calculateLiveKAP(player: Player, room?: Room): number {
   return baseKAP(player, room);
 }
 
-// Di akhir game: semua penalti diterapkan (hutang & FOMO)
+// Di akhir game: tambah bonus uang + kurangi penalti hutang & FOMO
+// (penalti ambiguitas = FOMO, tidak dihitung terpisah)
 function calculateFinalKAP(player: Player, room?: Room): number {
+  const moneyBonus = Math.floor((player.money || 0) / 10);
   const hutangPenalty = Math.floor((player.hutang || 0) / 3);
   const fomoPenalty = fomoKAPPenalty(player.fomoCount || 0);
-  return baseKAP(player, room) - hutangPenalty - fomoPenalty;
+  return baseKAP(player, room) + moneyBonus - hutangPenalty - fomoPenalty;
 }
 
 function advanceRonde(room: Room) {
