@@ -8,7 +8,7 @@ const CARDS = [
     badge: "PDF Guide", action: "/panduan",
   },
   {
-    num: "02", icon: "🎮", title: "Mulai Game",
+    num: "02", icon: "♟️", title: "Mulai Game",
     desc: "Buat atau gabung room, catat transaksi, dan hitung KAP secara real-time.",
     color: "#059669", grad: "linear-gradient(135deg,#047857,#10b981)",
     badge: "Multiplayer", action: "/game",
