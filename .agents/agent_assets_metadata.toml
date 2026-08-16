@@ -6,3 +6,17 @@ id = "H5I-Rso_DtlCGCu_2NBCm"
 uri = "file://do-it-app.zip"
 type = "unspecified"
 title = "DO IT: Start a Business — Companion App"
+
+[[outputs]]
+id = "Mf1d1wL2VbaCdwWGz1jwH"
+uri = "file://attached_assets/Form_Validasi_Ahli_Media_DO_IT.docx"
+type = "word_document"
+title = "Form Validasi Ahli Media"
+description = "Form uji validasi ahli media untuk aplikasi companion game DO IT: Start a Business. Berisi 17 indikator dalam 5 aspek (Rekayasa Perangkat Lunak, UI, UX, Komunikasi Visual, Kemanfaatan Teknis). Skor maks: 85."
+
+[[outputs]]
+id = "QqSlLzLXFraVNKbDmGw70"
+uri = "file://attached_assets/Form_Validasi_Ahli_Materi_DO_IT.docx"
+type = "word_document"
+title = "Form Validasi Ahli Materi"
+description = "Form uji validasi ahli materi untuk game edukasi DO IT: Start a Business. Berisi 19 indikator dalam 5 aspek (Kelayakan Isi, Kebenaran Konsep, Penyajian, Kebahasaan, Tujuan Pembelajaran). Skor maks: 95."
