@@ -8,8 +8,6 @@ import Pengaturan from "./pages/Pengaturan";
 import AdminDashboard from "./pages/AdminDashboard";
 import PanduanViewer from "./pages/PanduanViewer";
 import KompetensiPage from "./pages/KompetensiPage";
-import ValidasiAhliMedia from "./pages/ValidasiAhliMedia";
-import ValidasiAhliMateri from "./pages/ValidasiAhliMateri";
 import SplashScreen from "./components/SplashScreen";
 import { ThemeProvider, useTheme, THEMES } from "./contexts/ThemeContext";
 
@@ -31,7 +29,7 @@ function BottomNav() {
       ? "beranda"
       : NAV_ITEMS.find(n => location.pathname.startsWith(n.path) && n.path !== "/")?.id ?? "beranda";
 
-  const hideNav = location.pathname === "/game" || location.pathname.startsWith("/admin") || location.pathname === "/panduan" || location.pathname === "/kompetensi" || location.pathname === "/validasi-media" || location.pathname === "/validasi-materi";
+  const hideNav = location.pathname === "/game" || location.pathname.startsWith("/admin") || location.pathname === "/panduan" || location.pathname === "/kompetensi";
   if (hideNav) return null;
 
   return (
@@ -123,8 +121,6 @@ function AppContent() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/panduan" element={<PanduanViewer />} />
           <Route path="/kompetensi" element={<KompetensiPage />} />
-          <Route path="/validasi-media" element={<ValidasiAhliMedia />} />
-          <Route path="/validasi-materi" element={<ValidasiAhliMateri />} />
         </Routes>
         <BottomNav />
       </div>
