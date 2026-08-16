@@ -28,6 +28,21 @@ const CARDS = [
   },
 ];
 
+const VALIDASI_CARDS = [
+  {
+    icon: "🖥️", title: "Validasi Ahli Media",
+    desc: "Form uji validasi kualitas UI/UX dan teknis aplikasi.",
+    color: "#2563eb", grad: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+    action: "/validasi-media",
+  },
+  {
+    icon: "📚", title: "Validasi Ahli Materi",
+    desc: "Form uji validasi kelayakan konten dan materi kewirausahaan.",
+    color: "#b45309", grad: "linear-gradient(135deg,#92400e,#d97706)",
+    action: "/validasi-materi",
+  },
+];
+
 export default function Home() {
   const navigate = useNavigate();
   const institution = localStorage.getItem("doitInstitution") || "POLINEMA";
@@ -168,8 +183,49 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ── FORM VALIDASI ── */}
+      <div style={{ padding:"4px 16px 0" }}>
+        <div style={{
+          display:"flex", alignItems:"center", gap:8, marginBottom:12, paddingLeft:2,
+        }}>
+          <div style={{
+            width:3, height:16, borderRadius:2, flexShrink:0,
+            background:"linear-gradient(180deg,#f59e0b,#fbbf24)",
+            boxShadow:"0 0 6px rgba(245,158,11,0.6)",
+          }}/>
+          <span style={{ color:"#0f2a5c", fontSize:11, fontWeight:900, letterSpacing:2 }}>FORM VALIDASI</span>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+          {VALIDASI_CARDS.map(card => (
+            <button key={card.action} onClick={() => navigate(card.action)}
+              style={{
+                background:"#fff", borderRadius:18, padding:"14px 12px",
+                border:"1px solid rgba(200,225,255,0.8)",
+                boxShadow:"0 4px 6px -1px rgba(0,0,0,0.06), 0 8px 24px rgba(15,42,92,0.08), inset 0 1px 0 rgba(255,255,255,0.9)",
+                cursor:"pointer", textAlign:"left", transition:"transform 0.18s",
+                position:"relative", overflow:"hidden",
+              }}
+              onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)"; }}
+            >
+              <div style={{
+                position:"absolute", top:0, left:0, right:0, height:3,
+                background:card.grad, borderRadius:"18px 18px 0 0",
+              }}/>
+              <div style={{
+                width:38, height:38, borderRadius:13, display:"flex", alignItems:"center",
+                justifyContent:"center", fontSize:20, marginBottom:8,
+                background:card.grad, boxShadow:`0 4px 12px ${card.color}40`,
+              }}>{card.icon}</div>
+              <div style={{ fontSize:12, fontWeight:900, color:"#0f1e36", lineHeight:1.3, marginBottom:4 }}>{card.title}</div>
+              <div style={{ fontSize:10, color:"#64748b", lineHeight:1.5 }}>{card.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── QUICK LINKS ── */}
-      <div style={{ padding:"14px 16px 24px" }}>
+      <div style={{ padding:"4px 16px 24px" }}>
 
         <div className="anim-slide-up" style={{
           display:"flex", alignItems:"center", gap:8, marginBottom:14, paddingLeft:2,
