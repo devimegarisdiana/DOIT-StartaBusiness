@@ -21,7 +21,13 @@ const CARDS = [
     badge: "Buka Sekarang", action: "/kompetensi",
   },
   {
-    num: "04", icon: "📋", title: "Kuesioner Intensi Kewirausahaan",
+    num: "04", icon: "⭐", title: "Survei Kepuasan",
+    desc: "Berikan penilaian dan masukan setelah menggunakan aplikasi DO IT.",
+    color: "#0891b2", grad: "linear-gradient(135deg,#0e7490,#06b6d4)",
+    badge: "Isi Survei", action: "https://bit.ly/4fU7X7g?r=qr", external: true,
+  },
+  {
+    num: "05", icon: "📋", title: "Kuesioner Intensi Kewirausahaan",
     desc: "Isi kuesioner intensi kewirausahaan untuk melengkapi data penelitian.",
     color: "#7c3aed", grad: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
     badge: "Isi Sekarang", action: "https://bit.ly/Kuesioner_Intensi_KWU", external: true,
