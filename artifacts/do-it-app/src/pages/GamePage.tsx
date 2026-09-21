@@ -538,8 +538,9 @@ export default function GamePage() {
       <div className="flex items-center gap-3 px-4 pt-4 pb-4" style={{ background:"#1a3a6b" }}>
         <button onClick={()=>navigate("/")} className="text-white text-2xl">‹</button>
         <div>
-          <h1 className="text-white font-black text-lg">Aplikasi Penghitung Skor Otomatis</h1>
-          <p className="text-blue-300 text-xs">Buat atau gabung room untuk menghitung skor permainan secara otomatis</p>
+          <p className="text-amber-300 text-[10px] font-black uppercase tracking-wider">Aplikasi Penghitung Skor Otomatis</p>
+          <h1 className="text-white font-black text-lg">Mulai Game</h1>
+          <p className="text-blue-300 text-xs">Buat atau gabung room</p>
         </div>
         <span className="ml-auto text-3xl">🧮</span>
       </div>
