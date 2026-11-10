@@ -15,22 +15,22 @@ const CARDS = [
     imgSrc: import.meta.env.BASE_URL.replace(/\/$/, "") + "/meeple-icon.jpeg",
   },
   {
-    num: "03", icon: "↗", title: "Aplikasi Pengukur Karakter Wirausaha Pemula",
+    num: "03", icon: "🎯", title: "Pengukuran Kompetensi Kewirausahaan",
+    desc: "Ukur kompetensi kewirausahaanmu sebelum dan sesudah bermain secara langsung.",
+    color: "#d97706", grad: "linear-gradient(135deg,#b45309,#f59e0b)",
+    badge: "Buka Sekarang", action: "/kompetensi",
+  },
+  {
+    num: "04", icon: "↗", title: "Aplikasi Pengukur Karakter Wirausaha Pemula",
     desc: "Kenali karakter wirausaha pemula melalui aplikasi pengukuran karakter.",
     color: "#0891b2", grad: "linear-gradient(135deg,#0e7490,#06b6d4)",
     badge: "Buka Aplikasi", action: "https://inbis.kusmintarti-akuntansi-polinema.com/login.php", external: true,
   },
   {
-    num: "04", icon: "▤", title: "Formulir Kunjungan Booth",
+    num: "05", icon: "▤", title: "Formulir Kunjungan Booth",
     desc: "Isi formulir untuk mencatat kunjungan Anda ke booth.",
     color: "#7c3aed", grad: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
     badge: "Isi Formulir", action: "https://forms.gle/8BEbVZyrCEMzgqcCA", external: true,
-  },
-  {
-    num: "05", icon: "🎯", title: "Pengukuran Kompetensi Kewirausahaan",
-    desc: "Ukur kompetensi kewirausahaanmu sebelum dan sesudah bermain secara langsung.",
-    color: "#d97706", grad: "linear-gradient(135deg,#b45309,#f59e0b)",
-    badge: "Buka Sekarang", action: "/kompetensi",
   },
   {
     num: "06", icon: "⭐", title: "Survei Kepuasan", hidden: true,
