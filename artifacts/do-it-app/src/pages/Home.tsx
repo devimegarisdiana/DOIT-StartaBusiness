@@ -15,19 +15,31 @@ const CARDS = [
     imgSrc: import.meta.env.BASE_URL.replace(/\/$/, "") + "/meeple-icon.jpeg",
   },
   {
-    num: "03", icon: "🎯", title: "Pengukuran Kompetensi Kewirausahaan",
+    num: "03", icon: "↗", title: "Aplikasi Pengukur Karakter Wirausaha Pemula",
+    desc: "Kenali karakter wirausaha pemula melalui aplikasi pengukuran karakter.",
+    color: "#0891b2", grad: "linear-gradient(135deg,#0e7490,#06b6d4)",
+    badge: "Buka Aplikasi", action: "https://inbis.kusmintarti-akuntansi-polinema.com/login.php", external: true,
+  },
+  {
+    num: "04", icon: "▤", title: "Formulir Kunjungan Booth",
+    desc: "Isi formulir untuk mencatat kunjungan Anda ke booth.",
+    color: "#7c3aed", grad: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
+    badge: "Isi Formulir", action: "https://forms.gle/8BEbVZyrCEMzgqcCA", external: true,
+  },
+  {
+    num: "05", icon: "🎯", title: "Pengukuran Kompetensi Kewirausahaan",
     desc: "Ukur kompetensi kewirausahaanmu sebelum dan sesudah bermain secara langsung.",
     color: "#d97706", grad: "linear-gradient(135deg,#b45309,#f59e0b)",
     badge: "Buka Sekarang", action: "/kompetensi",
   },
   {
-    num: "04", icon: "⭐", title: "Survei Kepuasan",
+    num: "06", icon: "⭐", title: "Survei Kepuasan", hidden: true,
     desc: "Berikan penilaian dan masukan setelah menggunakan aplikasi DO IT.",
     color: "#0891b2", grad: "linear-gradient(135deg,#0e7490,#06b6d4)",
     badge: "Isi Survei", action: "https://bit.ly/4fU7X7g?r=qr", external: true,
   },
   {
-    num: "05", icon: "📋", title: "Kuesioner Intensi Kewirausahaan",
+    num: "07", icon: "📋", title: "Kuesioner Intensi Kewirausahaan", hidden: true,
     desc: "Isi kuesioner intensi kewirausahaan untuk melengkapi data penelitian.",
     color: "#7c3aed", grad: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
     badge: "Isi Sekarang", action: "https://bit.ly/Kuesioner_Intensi_KWU", external: true,
@@ -97,10 +109,10 @@ export default function Home() {
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {CARDS.filter(card => card.num !== "04" && card.num !== "05").map((card, i) => (
+          {CARDS.filter(card => !("hidden" in card && card.hidden)).map((card, i) => (
             <button key={card.num}
               className={`anim-slide-up tap-scale`}
-              onClick={() => (card as {external?:boolean}).external ? window.open(card.action, "_blank") : navigate(card.action)}
+              onClick={() => (card as {external?:boolean}).external ? window.open(card.action, "_blank", "noopener,noreferrer") : navigate(card.action)}
               style={{
                 width:"100%", textAlign:"left", cursor:"pointer",
                 background:"linear-gradient(160deg, #ffffff 0%, #f5f9ff 100%)",
