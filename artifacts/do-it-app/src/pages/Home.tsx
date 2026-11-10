@@ -97,7 +97,7 @@ export default function Home() {
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {CARDS.filter(card => card.num !== "05").map((card, i) => (
+          {CARDS.filter(card => card.num !== "04" && card.num !== "05").map((card, i) => (
             <button key={card.num}
               className={`anim-slide-up tap-scale`}
               onClick={() => (card as {external?:boolean}).external ? window.open(card.action, "_blank") : navigate(card.action)}
